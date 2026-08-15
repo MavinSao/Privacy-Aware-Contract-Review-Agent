@@ -1,0 +1,26 @@
+# --- core server -------------------------------------------------------------
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.20
+python-dotenv>=1.0
+httpx>=0.27
+
+# --- agent chain -------------------------------------------------------------
+# Pinned to the 1.x line; pydantic comes in as a transitive dependency.
+crewai==1.15.15
+
+# --- document -> markdown ----------------------------------------------------
+mammoth==1.9.0          # .docx -> html
+markdownify==0.14.1     # html  -> markdown
+pyhwp==0.1b15           # .hwp  (Hangul)
+pandas==2.2.3           # .xlsx / .xls
+tabulate==0.9.0         # pandas .to_markdown()
+openpyxl==3.1.5
+pymupdf==1.25.1         # PDF page rasterizing, for the OCR path only
+pypdf>=5.0,<6.0         # PDF text-layer fallback when no OCR backend is reachable
+pillow==11.1.0
+
+# --- OCR ---------------------------------------------------------------------
+# PaddleOCR PP-StructureV2 (Baidu) is a ~1 GB install. It is OPTIONAL: without it
+# PDFs fall back to PyMuPDF text extraction and images are unsupported.
+# Install separately:  pip install -r requirements-ocr.txt

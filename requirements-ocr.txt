@@ -1,0 +1,12 @@
+# OPTIONAL — local, in-process OCR for scanned PDFs and images.
+#
+# You only need this if you are NOT running a separate OCR server.
+# Prefer the server route when your team already has one:
+#     OCR_SERVER_URL=http://127.0.0.1:10000
+# which keeps ~1 GB of wheels out of this virtualenv entirely.
+#
+# PaddleOCR PP-StructureV3 (Baidu) — OCR + layout analysis + table recognition.
+# 3.x is the line that ships wheels for Python 3.13. CPU build; for GPU swap
+# paddlepaddle for paddlepaddle-gpu.
+paddlepaddle==3.3.1
+paddleocr==3.7.0

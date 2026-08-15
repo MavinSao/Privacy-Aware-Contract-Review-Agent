@@ -1,0 +1,24 @@
+# Deps for backend/ocr_server.py — the OCR_SERVER_URL process.
+#
+# It's still a SEPARATE PROCESS (its own port, started with its own command) so
+# it can be restarted, scaled, or moved to another machine independently of the
+# main app — but there's no need for a second venv. Install into the same one:
+#     pip install -r requirements-ocr-server.txt
+#     python backend/ocr_server.py --port 10000
+#
+# fastapi / uvicorn / pillow are already in requirements.txt and listed again
+# here only so this file works standalone too; the one new dependency is
+# rapidocr-onnxruntime.
+#
+# Then point the app at it (.env):  OCR_SERVER_URL=http://127.0.0.1:10000
+#
+# RapidOCR (onnxruntime) — CPU, no CUDA needed, ~50 MB of weights downloaded on
+# first use. Fast enough for interactive one-page-at-a-time OCR; trades away the
+# table/layout reconstruction that PaddleOCR PP-StructureV3 does (see
+# requirements-ocr.txt) for speed and a much smaller install.
+fastapi>=0.115
+uvicorn[standard]>=0.34
+pydantic>=2.0
+pillow>=11.1.0
+numpy>=1.26
+rapidocr-onnxruntime==1.2.3
