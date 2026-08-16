@@ -1,47 +1,68 @@
 # Privacy-Aware Contract Review Agent
 
-> Local-first document masking and contract review by **muffin_team**.
+> Review sensitive documents with AI without sending the original private data to an external model.
 
-The application converts business documents to Markdown, detects configured sensitive entities,
-applies a handling decision to each entity, and lets users review the processed document with a
-local or external language model. Entity mapping and response reconstruction happen locally.
+Built by **muffin_team**.
+
+## Motivation
+
+Contracts and business documents often contain names, company details, account numbers, contact
+information, internal project names, and credentials. Sending those documents directly to a hosted
+AI service can expose information that should remain private.
+
+This project adds a privacy layer before AI review. It converts a document to Markdown, detects
+sensitive values locally, decides how each value should be handled, and creates a pseudonymized
+copy. Only that processed copy is used for chat. When the model responds, known pseudonyms can be
+mapped back to their original values locally.
+
+The goal is simple: keep the usefulness of AI-assisted contract review while reducing unnecessary
+data exposure.
+
+## What it does
 
 ```text
 Document
    |
    v
-OCR / conversion -> Detect -> Classify -> Pseudonymize -> Masked Markdown
-                                      |                     |
-                                      |                     v
-                                      +----------> OpenAI / Mistral / Ollama
-                                                            |
-                                                            v
-                                              Local fake-to-real remapping
+OCR / conversion
+   |
+   v
+Detect -> Classify -> Pseudonymize
+                            |
+                            v
+                     Masked Markdown
+                            |
+                            v
+                  Ollama / OpenAI / Mistral
+                            |
+                            v
+                    Local reconstruction
 ```
 
-## Current features
+The privacy workflow has three main steps:
 
-- PDF, image, DOCX, HWP, spreadsheet, HTML, Markdown, text, and CSV ingestion.
-- Background OCR for bundled samples with visible status transitions:
-  `OCR processing` -> `detecting` -> `masking` -> `Done`.
-- Three-stage CrewAI workflow using local Ollama:
-  Detect -> Classify -> Pseudonymize.
-- Progressive detection UI: the prompt appears first, a Gemma loading indicator is shown, then
-  validated model output and the final agent response appear as they become available.
-- Deterministic pattern detection plus contextual local-model detection.
-- English-only detector prompt instructions and examples.
-- Custom NER tags that can be created or deleted from the **NER Tags** tab.
-- Three public handling statuses: `PSEUDONYMIZED`, `KEEP`, and `REMOVED`.
-- Chat through OpenAI, Mistral, or local Ollama.
-- Local reconstruction of pseudonymized values in model responses.
-- In-memory document store and downloadable masked Markdown or audit reports.
-- Zero-build React interface served directly by FastAPI.
-- English/Korean interface toggle in the header; English is the default.
-- Responsive layouts for mobile navigation, forms, chat, reconstruction, and data tables.
+1. **Detect** — find sensitive values with deterministic patterns and a local Gemma model.
+2. **Classify** — assign `PSEUDONYMIZED`, `KEEP`, or `REMOVED` to every accepted value.
+3. **Pseudonymize** — replace or redact values before the document can be sent to a chat model.
 
-## Privacy scope
+## Main features
 
-Built-in detection currently covers:
+- Converts PDF, images, DOCX, HWP, spreadsheets, HTML, Markdown, text, and CSV into Markdown.
+- Runs sample OCR in the background and immediately shows progress in the document table.
+- Uses deterministic detection together with contextual detection from local Ollama/Gemma.
+- Validates model findings against the original document and the authorized NER taxonomy.
+- Supports custom NER tags for project-specific privacy and security categories.
+- Shows the detector prompt, loading state, validated output, and agent explanation progressively.
+- Provides chat through local Ollama, OpenAI, or Mistral using only masked documents.
+- Renders model answers as Markdown and can reconstruct pseudonymized values locally.
+- Downloads masked Markdown and audit reports.
+- Keeps documents, mappings, and custom tags in memory instead of writing them to disk.
+- Includes English and Korean UI modes, light and dark themes, and responsive mobile layouts.
+- Provides scripts for temporary public demos through Cloudflare Tunnel.
+
+## Privacy model
+
+Built-in detection covers:
 
 - resident registration numbers;
 - payment-card numbers;
@@ -51,124 +72,45 @@ Built-in detection currently covers:
 - people, organizations, banks, and postal addresses;
 - internal project codenames.
 
-`MONEY`, `MONEY_TEXT`, and `DATE` are intentionally not NER tags. Amounts and dates remain
-unchanged.
+`MONEY`, `MONEY_TEXT`, and `DATE` are intentionally excluded. Amounts and dates stay unchanged.
 
-The application no longer performs a post-mask leak scan. Processing finishes with `Done` after
-pseudonymization. Detection quality therefore defines what is protected: a value missed by both
-the deterministic patterns and the local detector remains unchanged.
+The detector accepts a local-model finding only when:
 
-## Processing method
+- its value is an exact substring of the source document; and
+- its type exists in the current built-in or custom NER taxonomy.
 
-### 1. OCR and conversion
+This prevents invented values and unauthorized entity types from entering the mapping store.
 
-Every supported input becomes Markdown before entity detection begins.
-
-| Input | Method |
-| --- | --- |
-| Digital PDF | pypdf text layer |
-| Scanned PDF | OCR server or PaddleOCR |
-| PNG, JPG, JPEG, WEBP, BMP, TIFF | OCR server or PaddleOCR |
-| DOCX | mammoth + markdownify |
-| HWP | pyhwp |
-| XLSX, XLS | pandas + tabulate |
-| HTML | markdownify |
-| Markdown, text, CSV | direct text conversion |
-
-Bundled samples are registered in the document table immediately. Conversion then runs in a
-background thread, allowing the UI to show `OCR processing` before detection begins.
-
-### 2. Detect
-
-The Sensitive Information Detector combines two sources:
-
-1. deterministic regular-expression matches from `backend/privacy.py`;
-2. contextual entities proposed by the configured local Ollama model.
-
-Model proposals are accepted only when the value is an exact substring of the source document
-and the returned type exists in the current NER taxonomy. This prevents the model from inventing
-values or unauthorized entity types.
-
-The reasoning panel is updated progressively:
-
-1. publish the detector prompt;
-2. show `Gemma is detecting...`;
-3. publish the validated JSON model output;
-4. publish the completed detector summary.
-
-### 3. Classify
-
-The Risk Assessment & Decision Engine assigns one handling action to every accepted entity.
-Internal risk values may still support backend decisions, but the public UI displays only the
-result:
-
-| Public status | Internal action | Result |
+| Status | Internal action | Result |
 | --- | --- | --- |
-| `PSEUDONYMIZED` | `PSEUDONYMIZE` | Replace with a consistent stand-in. |
+| `PSEUDONYMIZED` | `PSEUDONYMIZE` | Replace the value with a consistent stand-in. |
 | `KEEP` | `ALLOW` | Preserve the original value. |
-| `REMOVED` | `MASK` | Replace with `[REDACTED-TYPE]`. |
+| `REMOVED` | `MASK` | Replace the value with `[REDACTED-TYPE]`. |
 
-### 4. Pseudonymize
-
-The Pseudonymization Engine applies the selected action. Built-in types receive format-aware
-stand-ins where supported. Custom pseudonymized types use a `[TYPE]` placeholder. Values marked
-`KEEP` remain unchanged, and values marked `REMOVED` are redacted.
-
-The document status becomes `Done` when this stage finishes.
-
-### 5. Chat and reconstruction
-
-The processed Markdown can be sent to:
-
-- Ollama on the local machine;
-- OpenAI;
-- Mistral.
-
-The returned answer initially contains stand-ins. The browser can display the reconstructed
-answer by asking the backend to replace known fake values with their originals from the in-memory
-mapping store. Removed values are never restored.
-
-## Detector prompt
-
-The local semantic detector receives an English system prompt with these rules:
-
-- return JSON only;
-- copy exact source text;
-- never infer, normalize, translate, or invent values;
-- inspect labeled fields, prose, tables, signatures, headers, and footers;
-- return every distinct notation and every occurrence category;
-- use only the currently authorized NER types;
-- return an empty entity list when nothing matches.
-
-The allowed-type list is built at scan time. Custom tag names and their detection guidance are
-appended to this prompt automatically.
+The project does not run a post-mask leak scanner. Detection quality therefore defines the
+privacy boundary: anything missed by both detection methods remains unchanged. Review the output
+before sending highly sensitive documents to an external provider.
 
 ## Custom NER tags
 
-Open **Demo -> NER Tags** to add project-specific security or privacy categories that are not in
-the built-in list.
-
-Each custom tag has three fields:
+Use **Demo -> NER Tags** to teach the detector additional security or privacy categories.
 
 | Field | Meaning | Example |
 | --- | --- | --- |
-| Root tag | Uppercase NER category returned by the model | `SECRET_KEY` |
-| What belongs in this tag? | Keywords, patterns, or examples that guide detection | `API keys, access tokens, private credentials` |
-| Handling | What happens to matched values | `REMOVED` |
+| Root tag | Uppercase category returned by the model | `SECRET_KEY` |
+| Detection guidance | Values, patterns, or keywords that belong to the category | `API keys, access tokens, credentials` |
+| Handling | How matching values should be processed | `REMOVED` |
 
-Tag names must contain 2-32 uppercase letters, numbers, or underscores and must start with a
-letter. Built-in tags cannot be overwritten.
-
-Custom tags are held in server memory. They apply to new scans and are cleared when the backend
-restarts. They require the local semantic detector; the deterministic fallback has no generated
-regex for custom categories.
+Custom tags are injected into the local detector prompt for new scans. They are stored in memory
+and disappear when the backend restarts. Because no regex is generated automatically, custom tags
+require the local semantic detector.
 
 ## Requirements
 
 - Python 3.10+
-- Ollama for contextual NER and local chat
-- Optional OCR server or PaddleOCR for scanned PDFs and images
-- Internet access on initial UI load for React, Tailwind, and Babel CDN assets
+- Ollama for contextual detection and local chat
+- An optional OCR server or PaddleOCR for scanned PDFs and images
+- Internet access when loading the UI dependencies from their CDNs
 
 ## Installation
 
@@ -179,49 +121,18 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Install and prepare Ollama:
+Install Ollama and download the default local model:
 
 ```powershell
 winget install Ollama.Ollama
 ollama pull gemma4:12b
 ```
 
-Use another installed Ollama model by changing `CREW_MODEL` in `.env`.
+To use another installed model, update `CREW_MODEL` in `.env`.
 
-## OCR options
+## Run locally
 
-### Separate OCR server
-
-```powershell
-pip install -r requirements-ocr-server.txt
-python backend\ocr_server.py --port 10000
-```
-
-Then configure:
-
-```dotenv
-OCR_SERVER_URL=http://127.0.0.1:10000
-```
-
-### In-process PaddleOCR
-
-```powershell
-pip install -r requirements-ocr.txt
-```
-
-Without either OCR option, digital PDFs and text-based formats still work. Scanned PDFs and
-images require OCR. Non-loopback OCR endpoints are refused unless `OCR_ALLOW_REMOTE=true` is set
-explicitly because OCR receives the raw document before masking.
-
-## Run
-
-Optional OCR server, in terminal 1:
-
-```powershell
-python backend\ocr_server.py --port 10000
-```
-
-Main application, in terminal 2:
+From the project root:
 
 ```powershell
 Set-Location backend
@@ -230,72 +141,81 @@ uvicorn main:app --reload --port 8000
 
 Open <http://127.0.0.1:8000>.
 
-## Temporary public demo with Cloudflare Tunnel
+### OCR options
 
-The included scripts can expose the locally running application through a temporary
-`https://*.trycloudflare.com` URL. A Cloudflare account and DNS configuration are not required.
+For the lightweight standalone OCR server:
+
+```powershell
+pip install -r requirements-ocr-server.txt
+python backend\ocr_server.py --port 10000
+```
+
+Then add this to `.env`:
+
+```dotenv
+OCR_SERVER_URL=http://127.0.0.1:10000
+```
+
+Alternatively, install in-process PaddleOCR:
+
+```powershell
+pip install -r requirements-ocr.txt
+```
+
+Digital PDFs and text-based formats work without OCR. Scanned PDFs and images require one of the
+OCR options. Remote OCR endpoints are rejected by default because OCR receives the raw document
+before masking; set `OCR_ALLOW_REMOTE=true` only when that exposure is intentional.
+
+## Demo workflow
+
+1. Optionally add a category under **Demo -> NER Tags**.
+2. Open **Upload & Mask** and upload a document or select a bundled sample.
+3. Follow the table status through `OCR processing`, `detecting`, `masking`, and `Done`.
+4. Review the detected values, handling decisions, reasoning output, and masked Markdown.
+5. Open **Chat**, select the processed document, and choose Ollama, OpenAI, or Mistral.
+6. Toggle the response between pseudonymized and locally reconstructed values.
+7. Use **Reconstruct** to restore known placeholders in pasted model output.
+
+## Temporary demo with Cloudflare Tunnel
 
 Install `cloudflared`:
 
 ```powershell
-# Windows
 winget install --id Cloudflare.cloudflared
 ```
 
-```bash
-# macOS
-brew install cloudflared
-
-# Linux: download a release from
-# https://github.com/cloudflare/cloudflared/releases
-```
-
-Start the FastAPI application first, then run the tunnel from the project root in another
-terminal:
+Start the FastAPI application, then run this from the project root in another terminal:
 
 ```powershell
-# Windows; default local port is 8000
 .\scripts\tunnel.ps1
 
-# Use a different application port
+# Different application port
 .\scripts\tunnel.ps1 -Port 8080
 ```
 
+On macOS or Linux:
+
 ```bash
-# macOS / Linux; default local port is 8000
 chmod +x ./scripts/tunnel.sh
 ./scripts/tunnel.sh
 
-# Use a different application port
+# Different application port
 ./scripts/tunnel.sh 8080
 ```
 
-Copy the public URL printed by `cloudflared`. The URL changes every time and remains available
-only while the tunnel process is running. Press `Ctrl+C` to stop it.
+The script prints a temporary `https://*.trycloudflare.com` URL. No Cloudflare account is needed.
+The URL changes each time and remains active only while the tunnel runs.
 
-This is intended for temporary demonstrations, not production deployment. The Quick Tunnel has
-no application authentication, so anyone with the URL can reach the running app. Documents,
-custom NER tags, and provider access available in that process may therefore be accessible to
-visitors. Run the tunnel only while actively demonstrating the application.
+This is for demonstrations, not production. The tunnel does not add application authentication,
+so anyone with the URL can access the running app and its in-memory session data.
 
-## Demo workflow
-
-1. Open **Demo -> NER Tags** and optionally add custom categories.
-2. Open **Upload & Mask** and choose a file or bundled sample.
-3. Watch `OCR processing`, `detecting`, `masking`, and `Done` in the table.
-4. Open the reasoning panel to see the prompt, loading state, validated output, and agent response.
-5. Review the mapping store and processed Markdown.
-6. Open **Chat**, select the document, choose a provider, and ask a contract question.
-7. Toggle the answer between pseudonymized and locally reconstructed values.
-8. Use **Reconstruct** to remap known placeholders in pasted model output.
-
-## Environment variables
+## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
-| `CREW_MODEL` | `gemma4:12b` | Local model used by CrewAI |
-| `CREW_ENABLED` | `true` | Disable to use deterministic tools only |
+| `CREW_MODEL` | `gemma4:12b` | Local detector model |
+| `CREW_ENABLED` | `true` | Use the CrewAI workflow; disable for deterministic fallback |
 | `OPENAI_API_KEY` | unset | Optional OpenAI key |
 | `MISTRAL_API_KEY` | unset | Optional Mistral key |
 | `OCR_SERVER_URL` | unset | OpenAI-compatible OCR endpoint |
@@ -303,82 +223,101 @@ visitors. Run the tunnel only while actively demonstrating the application.
 | `OCR_PROMPT` | `document parsing.` | OCR instruction |
 | `OCR_DPI` | `300` | PDF rasterization resolution |
 | `OCR_TIMEOUT` | `120` | OCR timeout per page |
-| `OCR_ALLOW_REMOTE` | `false` | Permit a non-loopback OCR endpoint |
+| `OCR_ALLOW_REMOTE` | `false` | Allow a non-loopback OCR endpoint |
 
 ## API
 
-Interactive API documentation is available at `/docs`.
+Interactive documentation is available at `/docs` while the application is running.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health` | Runtime engines and installed local models |
-| `GET` | `/api/samples` | List bundled documents |
+| `GET` | `/api/health` | Show available engines and local models |
+| `GET` | `/api/samples` | List bundled sample documents |
 | `POST` | `/api/documents` | Upload and convert documents |
-| `POST` | `/api/documents/sample` | Register a sample and start background conversion |
+| `POST` | `/api/documents/sample` | Add a sample and start background conversion |
 | `GET` | `/api/documents` | List session documents |
-| `POST` | `/api/documents/{uid}/scan` | Re-run detection and classification |
+| `POST` | `/api/documents/{uid}/scan` | Run detection and classification again |
 | `POST` | `/api/documents/{uid}/mask` | Run pseudonymization |
-| `GET` | `/api/documents/{uid}/download` | Download masked, raw, or audit Markdown |
+| `GET` | `/api/documents/{uid}/download` | Download raw, masked, or audit Markdown |
 | `DELETE` | `/api/documents/{uid}` | Remove a session document |
 | `GET` | `/api/ner-tags` | List custom NER tags |
 | `POST` | `/api/ner-tags` | Create or replace a custom NER tag |
 | `DELETE` | `/api/ner-tags/{name}` | Delete a custom NER tag |
-| `POST` | `/api/chat` | Ask a model about processed documents |
-| `POST` | `/api/remap` | Restore known placeholders in pasted text |
+| `POST` | `/api/chat` | Chat about processed documents |
+| `POST` | `/api/remap` | Restore known placeholders in text |
 
-## Project layout
+## Project structure
 
 ```text
 backend/
   convert.py       Document-to-Markdown conversion
-  crew.py          Three-agent CrewAI workflow and progressive trace events
+  crew.py          Detection, classification, pseudonymization, and progress events
   llm.py           Ollama, OpenAI, and Mistral routing
-  main.py          FastAPI routes, background jobs, and UI serving
+  main.py          FastAPI routes, background jobs, and frontend serving
   ocr_server.py    Optional standalone OCR service
-  privacy.py       NER taxonomy, detection, classification, masking, remapping, store
+  privacy.py       NER taxonomy, validation, masking, remapping, and in-memory store
 frontend/
-  index.html       Browser entry point
+  index.html       Browser entry point and shared responsive styles
   app.jsx          React interface
 docs/
   ARCHITECTURE.md
   CONTEXT-AND-CHAT.md
 samples/            Bundled demonstration documents
-scripts/            Temporary tunnel launchers
+scripts/            Cloudflare Tunnel launchers
 ```
+
+## Contributing
+
+Contributions are welcome, especially in these areas:
+
+- detection rules and entity validation;
+- Korean and English prompt quality;
+- OCR accuracy and additional document formats;
+- privacy and security review;
+- accessibility, responsive UI, and translation quality;
+- tests and documentation.
+
+To contribute:
+
+1. Fork the repository and create a focused branch.
+2. Install the project and verify the existing workflow locally.
+3. Make one clear change and avoid committing real contracts, credentials, or personal data.
+4. Test both deterministic fallback and local-model behavior when your change affects detection.
+5. Open a pull request explaining the problem, the change, and how you verified it.
+
+For security-sensitive findings, do not include private documents or usable secrets in a public
+issue. Use sanitized examples that reproduce the problem.
 
 ## Known limitations
 
-- Documents, mappings, audit data, and custom tags are in memory and disappear after restart.
-- Custom tags depend on the local model and are unavailable in deterministic-only mode.
-- The local model must return exact source substrings and valid tag names for proposals to be used.
-- OCR quality limits downstream detection quality.
-- No post-mask leak detection is performed.
-- The UI loads its JavaScript dependencies from CDNs rather than a bundled build.
+- Documents, mappings, audit data, and custom tags disappear when the backend restarts.
+- Detection and OCR quality determine what is protected.
+- Custom tags depend on the local semantic model.
+- The deterministic fallback cannot detect newly invented custom categories.
+- There is no post-mask leak detection.
+- Browser dependencies are loaded from CDNs instead of a bundled frontend build.
+- The application has no authentication and is not production-ready.
 
 ## Troubleshooting
 
 **Ollama is unavailable**
 
-Run `ollama serve`, confirm the model with `ollama list`, and ensure `CREW_MODEL` matches an
-installed model.
+Run `ollama serve`, check installed models with `ollama list`, and confirm that `CREW_MODEL`
+matches one of them.
 
 **The reasoning panel has no model output**
 
-The app probably used deterministic fallback. Check the backend console for a CrewAI fallback
-message and confirm Ollama supports the selected model.
+The application probably used deterministic fallback. Check the backend console and verify that
+Ollama and the configured model are available.
 
 **A scanned PDF or image cannot be converted**
 
-Start the OCR server or install `requirements-ocr.txt`. Digital PDFs do not require OCR.
+Start the standalone OCR server or install `requirements-ocr.txt`. Digital PDFs do not need OCR.
 
 **A custom tag is not detected**
 
-Confirm Ollama is active, make the guidance concrete, and run a new scan. Existing scan results
-are not retroactively updated.
-
-**The interface remains on “compiling”**
-
-The browser could not load React, Tailwind, or Babel from their CDNs.
+Confirm that Ollama is active, make the detection guidance concrete, and start a new scan. Custom
+tags do not update previous scan results.
 
 ## Copyright
 
