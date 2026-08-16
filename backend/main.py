@@ -29,6 +29,7 @@ import shutil
 import tempfile
 import threading
 import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote
@@ -278,6 +279,11 @@ def _audit_report(doc: Document) -> str:
 # Chat
 # ---------------------------------------------------------------------------
 
+CHAT_STATE: dict[str, Any] = {
+    "sessions": [], "activeId": "", "provider": "ollama", "model": "gemma4:12b", "input": "",
+}
+CHAT_STATE_LOCK = threading.Lock()
+
 SYSTEM_PROMPT = (
     "You are a contract review assistant. The documents below have been "
     "pseudonymized: names, companies, account numbers, and other sensitive identifiers were "
@@ -295,6 +301,36 @@ class ChatRequest(BaseModel):
     model: str | None = None
     api_key: str | None = None
     history: list[dict[str, str]] = []
+
+
+class SavedChatSession(BaseModel):
+    id: str
+    title: str = "New chat"
+    docUids: list[str] = []
+    messages: list[dict[str, Any]] = []
+
+
+class ChatStateRequest(BaseModel):
+    sessions: list[SavedChatSession]
+    activeId: str = ""
+    provider: Literal["openai", "mistral", "ollama"] = "ollama"
+    model: str = "gemma4:12b"
+    input: str = ""
+
+
+@app.get("/api/chat-state")
+def get_chat_state() -> dict[str, Any]:
+    with CHAT_STATE_LOCK:
+        return deepcopy(CHAT_STATE)
+
+
+@app.put("/api/chat-state")
+def save_chat_state(request: ChatStateRequest) -> dict[str, Any]:
+    state = request.model_dump()
+    with CHAT_STATE_LOCK:
+        CHAT_STATE.clear()
+        CHAT_STATE.update(state)
+        return deepcopy(CHAT_STATE)
 
 
 @app.post("/api/chat")

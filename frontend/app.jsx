@@ -44,6 +44,7 @@ async function api(path, options = {}) {
 }
 
 /* -------------------------------------------------------------- helpers --- */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const trunc = (s, n = 34) => (s && s.length > n ? s.slice(0, n) + "…" : s);
 const statusTone = (status) => (status === "REMOVED" ? "danger" : status === "PSEUDONYMIZED" ? "accent" : "muted");
 const KO = {
@@ -107,6 +108,30 @@ function downloadText(filename, content) {
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+function highlightEntities(entities, revealed) {
+  const mapped = entities.filter((entity) => entity.fake)
+    .sort((a, b) => b.fake.length - a.fake.length);
+  if (!mapped.length) return () => {};
+  const pattern = new RegExp(`(${mapped.map((entity) => escapeRe(entity.fake)).join("|")})`, "g");
+  const lookup = new Map(mapped.map((entity) => [entity.fake, entity]));
+
+  return () => (tree) => {
+    const visit = (node) => {
+      if (!node.children || node.tagName === "code" || node.tagName === "pre") return;
+      node.children = node.children.flatMap((child) => {
+        if (child.type !== "text") { visit(child); return [child]; }
+        return child.value.split(pattern).filter(Boolean).map((part) => {
+          const entity = lookup.get(part);
+          return entity
+            ? { type: "element", tagName: "mark", properties: {}, children: [{ type: "text", value: revealed ? entity.real : entity.fake }] }
+            : { type: "text", value: part };
+        });
+      });
+    };
+    visit(tree);
+  };
 }
 
 /* ------------------------------------------------------------ primitives --- */
@@ -507,10 +532,8 @@ function UploadTab({ docs, refresh, notify }) {
 function ChatMessage({ message, entities }) {
   const T = useT();
   const [revealed, setRevealed] = useState(false);
-  const shown = revealed
-    ? entities.reduce((text, entity) => text.split(entity.fake).join(entity.real), message.masked_answer)
-    : message.masked_answer;
-  const fenced = shown.trim().match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
+  const fenced = message.masked_answer.trim().match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
+  const markdown = fenced ? fenced[1] : message.masked_answer;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
@@ -530,7 +553,13 @@ function ChatMessage({ message, entities }) {
       </div>
 
       <div className="chat-markdown px-4 py-3.5" style={{ fontFamily: T.sans, fontSize: 13.5, lineHeight: 1.7 }}>
-        <ReactMarkdown>{fenced ? fenced[1] : shown}</ReactMarkdown>
+        <ReactMarkdown
+          rehypePlugins={[highlightEntities(entities, revealed)]}
+          components={{ mark: ({ children }) => <span className="rounded px-1 py-0.5" style={{
+            background: revealed ? `${T.accent}22` : `${T.accent2}22`,
+            color: revealed ? T.accent : T.accent2, fontFamily: T.mono, fontWeight: 600,
+          }}>{children}</span> }}
+        >{markdown}</ReactMarkdown>
       </div>
 
     </div>
@@ -1257,8 +1286,8 @@ function App() {
   const [error, setError] = useState("");
   const [topTab, setTopTab] = useState("home");
   const [demoTab, setDemoTab] = useState("upload");
-  // Chat lives here, not in <ChatTab>, so leaving the tab does not throw the
-  // conversation away. It stays in memory only — never in browser storage.
+  // Chat lives here so tab switches keep it mounted; the backend mirrors the
+  // non-secret fields so browser refreshes behave like the document store.
   const [chat, setChat] = useState({
     sessions: [{ id: "c1", title: "New chat", docUids: [], messages: [] }],
     activeId: "c1",
@@ -1267,13 +1296,27 @@ function App() {
     apiKey: "",
     input: "",
   });
+  const [chatLoaded, setChatLoaded] = useState(false);
 
   const refresh = async (documents = null) =>
     setDocs(documents || (await api("/documents")).documents);
   useEffect(() => {
     refresh().catch((e) => setError(e.message));
     api("/health").then(setHealth).catch(() => {});
+    api("/chat-state")
+      .then((saved) => setChat((current) => saved.sessions?.length ? { ...current, ...saved, apiKey: "" } : current))
+      .catch((e) => setError(e.message))
+      .finally(() => setChatLoaded(true));
   }, []);
+  useEffect(() => {
+    if (!chatLoaded) return;
+    const timer = setTimeout(() => {
+      const { sessions, activeId, provider, model, input } = chat;
+      api("/chat-state", { method: "PUT", body: JSON.stringify({ sessions, activeId, provider, model, input }) })
+        .catch((e) => setError(e.message));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [chatLoaded, chat.sessions, chat.activeId, chat.provider, chat.model, chat.input]);
   useEffect(() => {
     if (topTab === "demo") refresh().catch((e) => setError(e.message));
   }, [topTab, demoTab]);

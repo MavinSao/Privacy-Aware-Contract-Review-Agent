@@ -56,7 +56,7 @@ The privacy workflow has three main steps:
 - Provides chat through local Ollama, OpenAI, or Mistral using only masked documents.
 - Renders model answers as Markdown and can reconstruct pseudonymized values locally.
 - Downloads masked Markdown and audit reports.
-- Keeps documents, mappings, and custom tags in memory instead of writing them to disk.
+- Keeps documents, mappings, custom tags, and chat history in backend memory instead of writing them to disk.
 - Includes English and Korean UI modes, light and dark themes, and responsive mobile layouts.
 - Provides scripts for temporary public demos through Cloudflare Tunnel.
 
@@ -244,6 +244,8 @@ Interactive documentation is available at `/docs` while the application is runni
 | `POST` | `/api/ner-tags` | Create or replace a custom NER tag |
 | `DELETE` | `/api/ner-tags/{name}` | Delete a custom NER tag |
 | `POST` | `/api/chat` | Chat about processed documents |
+| `GET` | `/api/chat-state` | Load in-memory chat sessions after a browser refresh |
+| `PUT` | `/api/chat-state` | Save non-secret chat state in backend memory |
 | `POST` | `/api/remap` | Restore known placeholders in text |
 
 ## Project structure
@@ -290,7 +292,7 @@ issue. Use sanitized examples that reproduce the problem.
 
 ## Known limitations
 
-- Documents, mappings, audit data, and custom tags disappear when the backend restarts.
+- Documents, mappings, audit data, custom tags, and chat history disappear when the backend restarts.
 - Detection and OCR quality determine what is protected.
 - Custom tags depend on the local semantic model.
 - The deterministic fallback cannot detect newly invented custom categories.
