@@ -48,6 +48,58 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const trunc = (s, n = 34) => (s && s.length > n ? s.slice(0, n) + "…" : s);
 const statusTone = (status) => (status === "REMOVED" ? "danger" : status === "PSEUDONYMIZED" ? "accent" : "muted");
 const KO = {
+  "Privacy-Aware Contract Review Agent": "프라이버시 보호형 계약 검토 AI 에이전트",
+  "Business teams already lean on generative AI to summarize contracts, review terms, and draft emails — but those documents carry personal data, company names, account numbers, contract values, and confidential clauses that shouldn't leave the building. This agent converts any document to Markdown, detects that sensitive information automatically, masks it with consistent and realistic placeholders before anything is sent to an external model, restores the real values locally once a response comes back, and keeps an audit log of exactly what was checked — so teams keep the speed of generative AI without the exposure risk.": "기업 실무팀은 이미 생성형 AI를 활용해 계약서를 요약하고, 조항을 검토하며, 이메일 초안을 작성하고 있습니다. 하지만 이러한 문서에는 개인정보, 회사명, 계좌번호, 계약 금액, 외부로 유출되어서는 안 되는 기밀 조항이 포함될 수 있습니다. 이 에이전트는 문서를 Markdown으로 변환하고 민감 정보를 자동으로 탐지한 뒤, 외부 모델로 전송하기 전에 일관되고 현실적인 대체 값으로 가명처리합니다. 모델 응답이 돌아오면 실제 값을 로컬에서 복원하고, 어떤 항목을 검사했는지 감사 기록으로 남깁니다. 이를 통해 실무팀은 정보 노출 위험을 줄이면서 생성형 AI의 속도와 편의성을 활용할 수 있습니다.",
+  "ARCHITECTURE": "아키텍처",
+  "Local Gemma detects context. Deterministic Python validates and protects.": "로컬 Gemma가 문맥을 탐지하고, 결정론적 Python이 검증하고 보호합니다.",
+  "Everything inside the dashed boundary runs on this machine. Only masked Markdown ever leaves it.": "점선 경계 안의 모든 작업은 이 기기에서 실행되며, 마스킹된 Markdown만 외부로 전송됩니다.",
+  "0 · INGESTION — convert.py · any file → Markdown": "0 · 문서 입력 — convert.py · 모든 파일 → Markdown",
+  "OCR server (fast, separate process)": "OCR 서버(빠른 별도 프로세스)",
+  "PaddleOCR PP-StructureV3 (in-process)": "PaddleOCR PP-StructureV3(프로세스 내부)",
+  "pypdf text layer": "pypdf 텍스트 레이어",
+  "passthrough / markdownify": "직접 변환 / markdownify",
+  "LOCAL BOUNDARY — CrewAI + Gemma detect · privacy.py validates and masks": "로컬 경계 — CrewAI + Gemma 탐지 · privacy.py 검증 및 마스킹",
+  "CREWAI SEQUENTIAL CHAIN — local Ollama only": "CREWAI 순차 체인 — 로컬 Ollama 전용",
+  "Sensitive Information Detector": "민감 정보 탐지기",
+  "Risk Assessment & Decision Engine": "위험 평가 및 처리 결정 엔진",
+  "Pseudonymization Engine": "가명처리 엔진",
+  "Gemma proposes contextual entities that fixed patterns may miss. Python accepts only exact substrings with approved entity types, merges them with deterministic findings, and performs every replacement and completion result.": "Gemma는 고정 패턴이 놓칠 수 있는 문맥 기반 엔티티를 제안합니다. Python은 승인된 엔티티 유형과 원문에 정확히 존재하는 값만 허용하고, 결정론적 탐지 결과와 병합한 뒤 모든 치환과 완료 처리를 수행합니다.",
+  "DECISION ENGINE — privacy.py · TAXONOMY": "처리 결정 엔진 — privacy.py · TAXONOMY",
+  "PSEUDONYMIZED — replace with a consistent alias": "가명처리 — 일관된 대체 값으로 교체",
+  "KEEP — preserve the original value": "유지 — 원본 값 보존",
+  "REMOVED — replace with a redacted marker": "제거 — 비식별 표식으로 교체",
+  "3 · SEMANTIC-PRESERVING MASKING": "3 · 의미 보존형 마스킹",
+  "format-aware aliases": "형식 인식 대체 값",
+  "recognized types receive realistic stand-ins": "인식된 유형에 현실적인 대체 값 적용",
+  "consistent mapping": "일관된 매핑",
+  "the same source value always gets the same alias": "같은 원본 값에는 항상 같은 대체 값 적용",
+  "KEEP values": "유지 값",
+  "amounts and dates remain accurate for analysis": "금액과 날짜를 그대로 유지해 분석 정확성 보존",
+  "REMOVED values": "제거 값",
+  "replaced with [REDACTED-TYPE] and never restored": "[REDACTED-TYPE]으로 교체되며 복원되지 않음",
+  "mapping store": "매핑 저장소",
+  "in-process memory · never written to disk": "프로세스 메모리 · 디스크에 기록하지 않음",
+  "llm.py — the only outbound network code · masked Markdown only": "llm.py — 유일한 외부 네트워크 코드 · 마스킹된 Markdown만 전송",
+  "chat model": "채팅 모델",
+  "OpenAI · Mistral · Ollama — your choice, key stays in the tab": "OpenAI · Mistral · Ollama — 사용자 선택, 키는 탭에만 유지",
+  "agent model": "에이전트 모델",
+  "local Ollama only (CREW_MODEL, default gemma4:12b)": "로컬 Ollama 전용(CREW_MODEL, 기본값 gemma4:12b)",
+  "security layer": "보안 계층",
+  "hybrid: local Gemma detection + deterministic validation and masking": "하이브리드: 로컬 Gemma 탐지 + 결정론적 검증 및 마스킹",
+  "retrieval": "검색 방식",
+  "none. whole masked document in the prompt — no RAG, no embeddings": "없음. 마스킹된 전체 문서를 프롬프트에 포함 — RAG 및 임베딩 미사용",
+  "history": "대화 기록",
+  "replayed as MASKED answers, never the remapped ones": "복원된 답변이 아닌 마스킹된 답변으로 재전송",
+  "REMAP — locally, no network": "복원 — 네트워크 없이 로컬 처리",
+  "fake → real, longest match first": "대체 값 → 실제 값, 긴 항목부터 일치",
+  "MASK-ed values stay redacted": "제거된 값은 비식별 상태로 유지",
+  "real values live in server memory only": "실제 값은 서버 메모리에만 유지",
+  "AUDIT LOG — per document": "감사 로그 — 문서별 기록",
+  "ingested — converter, size": "문서 입력 — 변환기, 크기",
+  "privacy_chain — engine, risk counts": "프라이버시 체인 — 엔진, 탐지 수",
+  "each query — provider, restored": "각 요청 — 제공자, 복원 수",
+  "export as Markdown": "Markdown으로 내보내기",
+  "privacy.py imports no network library at all — raw values physically cannot leave through it. Full write-up in docs/ARCHITECTURE.md and docs/CONTEXT-AND-CHAT.md": "privacy.py는 네트워크 라이브러리를 전혀 사용하지 않으므로 원본 값이 이 경로를 통해 외부로 나갈 수 없습니다. 자세한 내용은 docs/ARCHITECTURE.md와 docs/CONTEXT-AND-CHAT.md를 참고하세요.",
   "Home": "홈", "Team": "팀", "Architecture": "아키텍처", "Demo": "데모",
   "Upload & Mask": "업로드 및 마스킹", "NER Tags": "NER 태그", "Chat": "채팅", "Reconstruct": "복원",
   "Privacy Agent": "프라이버시 에이전트", "local-first · pseudonymized": "로컬 우선 · 가명처리",
@@ -605,14 +657,17 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
   const setInput = (value) => patch({ input: value });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const endRef = useRef(null);
+  const messagesRef = useRef(null);
 
   const session = sessions.find((s) => s.id === activeId) || sessions[0];
   const selected = ready.filter((d) => session.docUids.includes(d.uid));
   const entities = selected.flatMap((d) => d.entities || []);
   const providerInfo = PROVIDERS.find((p) => p.id === provider);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [session?.messages]);
+  useEffect(() => {
+    const box = messagesRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [session?.messages, sending]);
   // The installed-model list arrives after mount, so fill in a valid default once —
   // without clobbering a model the user picked (which would happen on every remount).
   useEffect(() => {
@@ -759,7 +814,8 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 rounded-2xl p-4 min-h-[300px]" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
+        <div ref={messagesRef} className="chat-messages flex flex-col gap-3 rounded-2xl p-4"
+          role="log" tabIndex="0" style={{ background: T.bg, border: `1px solid ${T.border}` }}>
           {selected.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-16 text-center" style={{ color: T.muted }}>
               <Files size={22} />
@@ -784,7 +840,6 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
               <Loader2 size={13} className="animate-spin" /> masking → sending → waiting on {provider}…
             </div>
           )}
-          <div ref={endRef} />
         </div>
 
         <div className="flex gap-2">
@@ -1189,9 +1244,9 @@ function ArchitectureTab() {
         <FlowArrow />
 
         <ArchStage number="2" title="DECISION ENGINE — privacy.py · TAXONOMY" items={[
-          { icon: Ban, label: "MASK — 주민번호, cards" },
-          { icon: KeyRound, label: "PSEUDONYMIZE — the rest" },
-          { icon: Check, label: "ALLOW — %, durations" },
+          { icon: KeyRound, label: "PSEUDONYMIZED — replace with a consistent alias" },
+          { icon: Check, label: "KEEP — preserve the original value" },
+          { icon: Ban, label: "REMOVED — replace with a redacted marker" },
         ]} />
 
         <FlowArrow />
@@ -1203,20 +1258,12 @@ function ArchitectureTab() {
               3 · SEMANTIC-PRESERVING MASKING
             </span>
           </div>
-          <Row label="one scale factor" value="every amount → “20% of total” still checks out" />
-          <Row label="one date offset" value="every date → “60 days before expiry” still holds" />
-          <Row label="shape preserved" value="010-… stays 010-… · 000-00-00000 · Co., Ltd." />
-          <Row label="unique aliases" value="two companies never collapse into one name" />
+          <Row label="format-aware aliases" value="recognized types receive realistic stand-ins" />
+          <Row label="consistent mapping" value="the same source value always gets the same alias" />
+          <Row label="KEEP values" value="amounts and dates remain accurate for analysis" />
+          <Row label="REMOVED values" value="replaced with [REDACTED-TYPE] and never restored" />
           <Row label="mapping store" value="in-process memory · never written to disk" tone={T.accent} />
         </div>
-
-        <FlowArrow />
-
-        <ArchStage number="4" title="OUTPUT PRIVACY SCANNER — runs twice" items={[
-          { icon: Search, label: "after masking" },
-          { icon: Shield, label: "on the outgoing payload" },
-          { icon: CheckCircle2, label: "pseudonymization → complete" },
-        ]} />
       </div>
 
       <FlowArrow />

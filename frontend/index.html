@@ -34,6 +34,15 @@
       .chat-markdown blockquote { border-left: 3px solid #8592a0; padding-left: .8em; opacity: .85; }
       .chat-markdown table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
       .chat-markdown th, .chat-markdown td { border: 1px solid #8592a066; padding: .4em .6em; text-align: left; }
+      .chat-messages {
+        height: min(60vh, 560px);
+        min-height: 300px;
+        overflow-y: scroll;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: stable;
+      }
+      .chat-messages > * { flex-shrink: 0; }
       @media (max-width: 767px) {
         .app-shell { padding: 16px !important; }
         .app-header {
@@ -67,6 +76,7 @@
         .demo-nav button { justify-content: center; min-width: 0; }
         .demo-nav button svg { display: none; }
         .chat-grid, .reconstruct-grid, .ner-form { grid-template-columns: minmax(0, 1fr); }
+        .chat-messages { height: 52vh; min-height: 260px; }
         .ner-grid { min-width: 640px; }
         .mobile-full { width: 100% !important; }
         .mobile-toast { left: 16px !important; right: 16px !important; bottom: 16px !important; }
