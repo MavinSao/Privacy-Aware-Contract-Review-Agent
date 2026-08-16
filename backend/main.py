@@ -283,7 +283,8 @@ SYSTEM_PROMPT = (
     "pseudonymized: names, companies, account numbers, and other sensitive identifiers were "
     "replaced with consistent stand-ins. Analyze them exactly as written and never "
     "point out that values look fake. Answer in the language of the user's question. "
-    "Be concrete: quote clause numbers, figures and dates from the documents."
+    "Be concrete: quote clause numbers, figures and dates from the documents. "
+    "Use Markdown where useful, but do not wrap the whole answer in a code fence."
 )
 
 
@@ -397,9 +398,10 @@ def health() -> dict[str, Any]:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(FRONTEND / "index.html")
+    return FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/app.jsx")
 def app_source() -> FileResponse:
-    return FileResponse(FRONTEND / "app.jsx", media_type="text/babel")
+    return FileResponse(FRONTEND / "app.jsx", media_type="text/babel",
+                        headers={"Cache-Control": "no-store"})

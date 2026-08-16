@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, createContext, useContext } from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+import ReactMarkdown from "https://esm.sh/react-markdown@9?deps=react@18.3.1";
 import {
   Shield, FileText, CheckCircle2, Lock, Unlock, Send, Sparkles, Database, Upload,
   Download, RotateCcw, ChevronRight, FileUp, X, Wand2, Plus, Check, Trash2, Files,
@@ -43,7 +44,6 @@ async function api(path, options = {}) {
 }
 
 /* -------------------------------------------------------------- helpers --- */
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const trunc = (s, n = 34) => (s && s.length > n ? s.slice(0, n) + "…" : s);
 const statusTone = (status) => (status === "REMOVED" ? "danger" : status === "PSEUDONYMIZED" ? "accent" : "muted");
 const KO = {
@@ -100,17 +100,6 @@ function translateTree(root, language) {
       if (original) element.setAttribute(attr, language === "ko" && KO[original] ? KO[original] : original);
     });
   });
-}
-
-/** Split the masked answer on every placeholder so each one can be highlighted
- *  and toggled between its fake and real value. */
-function highlight(text, entities) {
-  const values = entities.map((e) => e.fake).filter(Boolean).sort((a, b) => b.length - a.length);
-  if (!values.length) return [{ t: text }];
-
-  const re = new RegExp(`(${values.map(escapeRe).join("|")})`, "g");
-  const lookup = new Map(entities.map((e) => [e.fake, e]));
-  return text.split(re).map((part) => (lookup.has(part) ? { e: lookup.get(part) } : { t: part }));
 }
 
 function downloadText(filename, content) {
@@ -518,9 +507,10 @@ function UploadTab({ docs, refresh, notify }) {
 function ChatMessage({ message, entities }) {
   const T = useT();
   const [revealed, setRevealed] = useState(false);
-  // Always split the masked answer — the toggle only changes which side of each
-  // mapping is rendered, so the two views stay perfectly aligned.
-  const shown = highlight(message.masked_answer, entities);
+  const shown = revealed
+    ? entities.reduce((text, entity) => text.split(entity.fake).join(entity.real), message.masked_answer)
+    : message.masked_answer;
+  const fenced = shown.trim().match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
@@ -539,13 +529,8 @@ function ChatMessage({ message, entities }) {
         </button>
       </div>
 
-      <div className="px-4 py-3.5" style={{ fontFamily: T.sans, fontSize: 13.5, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-        {shown.map((p, i) => p.t !== undefined ? <span key={i}>{p.t}</span> : (
-          <span key={i} className="rounded px-1 py-0.5" style={{
-            background: revealed ? `${T.accent}22` : `${T.accent2}22`,
-            color: revealed ? T.accent : T.accent2, fontFamily: T.mono, fontWeight: 600,
-          }}>{revealed ? p.e.real : p.e.fake}</span>
-        ))}
+      <div className="chat-markdown px-4 py-3.5" style={{ fontFamily: T.sans, fontSize: 13.5, lineHeight: 1.7 }}>
+        <ReactMarkdown>{fenced ? fenced[1] : shown}</ReactMarkdown>
       </div>
 
     </div>
@@ -1313,7 +1298,7 @@ function App() {
       <div className="app-shell p-6 md:p-10" style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: T.sans, transition: "background .2s, color .2s" }}>
         <div className="max-w-5xl mx-auto flex flex-col gap-8">
           <div className="app-header flex items-center justify-between flex-wrap gap-3">
-            <button onClick={() => setTopTab("home")} className="flex items-center gap-2.5">
+            <button onClick={() => setTopTab("home")} className="brand-button flex items-center gap-2.5 min-w-0">
               <div className="rounded-xl p-2" style={{ background: T.panel, border: `1px solid ${topTab === "home" ? T.accent : T.border}` }}>
                 <Shield size={18} color={T.accent} />
               </div>
@@ -1332,17 +1317,19 @@ function App() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => setLanguage((value) => value === "en" ? "ko" : "en")}
-                aria-label="Switch language" title="Switch language"
-                className="rounded-full px-3 py-2 flex items-center justify-center text-xs font-bold"
-                style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted, fontFamily: T.mono }}>
-                {language === "en" ? "EN" : "KR"}
-              </button>
-              <button onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Toggle light/dark mode"
-                className="rounded-full p-2.5 flex items-center justify-center"
-                style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted }}>
-                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-              </button>
+              <div className="header-actions flex items-center gap-2">
+                <button onClick={() => setLanguage((value) => value === "en" ? "ko" : "en")}
+                  aria-label="Switch language" title="Switch language"
+                  className="rounded-full px-3 py-2 flex items-center justify-center text-xs font-bold"
+                  style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted, fontFamily: T.mono }}>
+                  {language === "en" ? "EN" : "KR"}
+                </button>
+                <button onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Toggle light/dark mode"
+                  className="rounded-full p-2.5 flex items-center justify-center"
+                  style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted }}>
+                  {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                </button>
+              </div>
             </div>
           </div>
 
