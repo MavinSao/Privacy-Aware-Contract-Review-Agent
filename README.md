@@ -36,6 +36,8 @@ OCR / conversion -> Detect -> Classify -> Pseudonymize -> Masked Markdown
 - Local reconstruction of pseudonymized values in model responses.
 - In-memory document store and downloadable masked Markdown or audit reports.
 - Zero-build React interface served directly by FastAPI.
+- English/Korean interface toggle in the header; English is the default.
+- Responsive layouts for mobile navigation, forms, chat, reconstruction, and data tables.
 
 ## Privacy scope
 
@@ -227,6 +229,54 @@ uvicorn main:app --reload --port 8000
 ```
 
 Open <http://127.0.0.1:8000>.
+
+## Temporary public demo with Cloudflare Tunnel
+
+The included scripts can expose the locally running application through a temporary
+`https://*.trycloudflare.com` URL. A Cloudflare account and DNS configuration are not required.
+
+Install `cloudflared`:
+
+```powershell
+# Windows
+winget install --id Cloudflare.cloudflared
+```
+
+```bash
+# macOS
+brew install cloudflared
+
+# Linux: download a release from
+# https://github.com/cloudflare/cloudflared/releases
+```
+
+Start the FastAPI application first, then run the tunnel from the project root in another
+terminal:
+
+```powershell
+# Windows; default local port is 8000
+.\scripts\tunnel.ps1
+
+# Use a different application port
+.\scripts\tunnel.ps1 -Port 8080
+```
+
+```bash
+# macOS / Linux; default local port is 8000
+chmod +x ./scripts/tunnel.sh
+./scripts/tunnel.sh
+
+# Use a different application port
+./scripts/tunnel.sh 8080
+```
+
+Copy the public URL printed by `cloudflared`. The URL changes every time and remains available
+only while the tunnel process is running. Press `Ctrl+C` to stop it.
+
+This is intended for temporary demonstrations, not production deployment. The Quick Tunnel has
+no application authentication, so anyone with the URL can reach the running app. Documents,
+custom NER tags, and provider access available in that process may therefore be accessible to
+visitors. Run the tunnel only while actively demonstrating the application.
 
 ## Demo workflow
 

@@ -881,7 +881,7 @@ function ArchitectureTab() {
 
 // ---------------- App ----------------
 export default function App() {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const T = theme === "dark" ? DARK : LIGHT;
   const [docs, setDocs] = useState(() => {
     const p = PRESETS[0];

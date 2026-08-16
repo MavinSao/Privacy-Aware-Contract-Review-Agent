@@ -13,6 +13,22 @@
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-thumb { background: #33404b; border-radius: 4px; }
       #boot { font: 13px 'IBM Plex Mono', monospace; color: #8592a0; padding: 40px; }
+      .document-grid { grid-template-columns: 2.2fr 1.1fr 1.3fr 1.4fr; min-width: 720px; }
+      .chat-grid { grid-template-columns: 230px minmax(0, 1fr); }
+      .reconstruct-grid { grid-template-columns: 260px minmax(0, 1fr); }
+      .ner-form, .ner-grid { grid-template-columns: 1fr 2fr 1fr auto; }
+      .mobile-scroll { overflow-x: auto; }
+      @media (max-width: 767px) {
+        .app-shell { padding: 16px !important; }
+        .app-header { align-items: flex-start !important; }
+        .header-controls { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+        .primary-nav, .demo-nav { flex-shrink: 0; white-space: nowrap; }
+        .demo-nav { width: 100% !important; overflow-x: auto; }
+        .chat-grid, .reconstruct-grid, .ner-form { grid-template-columns: minmax(0, 1fr); }
+        .ner-grid { min-width: 640px; }
+        .mobile-full { width: 100% !important; }
+        .mobile-toast { left: 16px !important; right: 16px !important; bottom: 16px !important; }
+      }
     </style>
   </head>
   <body>

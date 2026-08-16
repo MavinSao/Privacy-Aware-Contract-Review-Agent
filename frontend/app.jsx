@@ -46,6 +46,61 @@ async function api(path, options = {}) {
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const trunc = (s, n = 34) => (s && s.length > n ? s.slice(0, n) + "…" : s);
 const statusTone = (status) => (status === "REMOVED" ? "danger" : status === "PSEUDONYMIZED" ? "accent" : "muted");
+const KO = {
+  "Home": "홈", "Team": "팀", "Architecture": "아키텍처", "Demo": "데모",
+  "Upload & Mask": "업로드 및 마스킹", "NER Tags": "NER 태그", "Chat": "채팅", "Reconstruct": "복원",
+  "Privacy Agent": "프라이버시 에이전트", "local-first · pseudonymized": "로컬 우선 · 가명처리",
+  "Bring any document. Nothing sensitive leaves this machine.": "문서를 추가하세요. 민감한 정보는 이 기기를 벗어나지 않습니다.",
+  "Every file is converted to Markdown first — PDFs and images through a fast OCR server (or PaddleOCR PP-StructureV3 in-process), Word through mammoth, Hangul (.hwp) through pyhwp. Then a CrewAI chain of three agents detects, classifies, and pseudonymizes it. Only the masked Markdown is ever allowed out.": "모든 파일은 먼저 Markdown으로 변환됩니다. PDF와 이미지는 OCR, Word는 mammoth, 한글(.hwp)은 pyhwp를 사용합니다. 이후 3단계 CrewAI 체인이 탐지, 분류, 가명처리를 수행하며 마스킹된 Markdown만 외부 모델에 전달됩니다.",
+  "Upload document": "문서 업로드", "Converting…": "변환 중…", "or try a bundled sample:": "또는 샘플 문서 사용:",
+  "DOCUMENT": "문서", "STATUS": "상태", "FINDINGS": "탐지 결과", "ACTIONS": "작업",
+  "No documents yet — upload a file or add a sample above.": "문서가 없습니다. 파일을 업로드하거나 샘플을 추가하세요.",
+  "OCR processing…": "OCR 처리 중…", "detecting…": "탐지 중…", "masking…": "마스킹 중…", "Done": "완료",
+  "chain failed": "처리 실패", "Retry": "다시 시도", "Retrying…": "다시 시도 중…",
+  "Gemma is detecting…": "Gemma가 탐지 중입니다…", "working…": "처리 중…",
+  "VALIDATED MODEL OUTPUT": "검증된 모델 출력", "MAPPING STORE — ephemeral, session-scoped, never written to disk": "매핑 저장소 — 세션 내 임시 저장, 디스크에 기록되지 않음",
+  "Customize sensitive-information tags.": "민감 정보 태그를 사용자 정의하세요.",
+  "Add security or privacy categories that are not covered by the default NER list. Each tag and its detection guidance is added to the local detector prompt for future scans.": "기본 NER 목록에 없는 보안 또는 개인정보 범주를 추가하세요. 각 태그와 탐지 가이드는 이후 스캔의 로컬 탐지 프롬프트에 추가됩니다.",
+  "CUSTOM NER TAGS": "사용자 정의 NER 태그", "ROOT TAG": "루트 태그", "WHAT BELONGS IN THIS TAG?": "이 태그에 포함되는 정보", "HANDLING": "처리 방식",
+  "Add": "추가", "TAG": "태그", "MODEL GUIDANCE": "모델 가이드", "ACTION": "작업", "No custom tags yet.": "사용자 정의 태그가 없습니다.",
+  "Teach Gemma project-specific secrets.": "프로젝트별 민감 정보 태그를 설정하세요.",
+  "Got a report back? Remap it to its real values.": "보고서를 받았나요? 실제 값으로 복원하세요.",
+  "Paste anything an external model produced from masked documents. The mapping store swaps the placeholders back to the originals — locally, in this process, never over the network.": "마스킹된 문서로 외부 모델이 생성한 내용을 붙여넣으세요. 매핑 저장소가 플레이스홀더를 원본으로 교체하며, 모든 복원은 네트워크 없이 로컬에서 수행됩니다.",
+  "No masked documents yet — process one in \"Upload & Mask\" first.": "마스킹된 문서가 없습니다. 먼저 '업로드 및 마스킹'에서 문서를 처리하세요.",
+  "MAP AGAINST": "매핑 대상", "PASTE THE REPORT / LLM RESPONSE": "보고서 / LLM 응답 붙여넣기", "Remap to original": "원본으로 복원", "Download": "다운로드",
+  "New chat": "새 채팅", "Send": "보내기", "Select documents": "문서 선택", "SELECT DOCUMENTS": "문서 선택",
+  "Summarize the key obligations": "주요 의무 사항을 요약해 주세요", "What are the payment terms?": "대금 지급 조건은 무엇인가요?", "Flag any risky clauses": "위험한 조항을 표시해 주세요", "List the main contract risks": "주요 계약 위험을 나열해 주세요",
+  "Try the demo": "데모 시작", "RUNTIME": "실행 환경", "OCR engine": "OCR 엔진", "Agent chain": "에이전트 체인", "Local models": "로컬 모델",
+  "TEAM": "팀", "Building a privacy-first contract review agent.": "프라이버시 우선 계약 검토 에이전트를 만듭니다.",
+  "Remove": "삭제", "Delete tag": "태그 삭제", "Toggle light/dark mode": "라이트/다크 모드 전환", "Switch language": "언어 전환"
+};
+const originalText = new WeakMap();
+const translatedText = (value, language) => {
+  const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const key = match[2].replace(/\s+/g, " ");
+  return language === "ko" && KO[key] ? `${match[1]}${KO[key]}${match[3]}` : value;
+};
+
+function translateTree(root, language) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement?.closest("pre, code")) continue;
+    let original = originalText.get(node) ?? node.nodeValue;
+    const expected = translatedText(original, "ko");
+    if (originalText.has(node) && node.nodeValue !== original && node.nodeValue !== expected) original = node.nodeValue;
+    originalText.set(node, original);
+    const value = translatedText(original, language);
+    if (node.nodeValue !== value) node.nodeValue = value;
+  }
+  root.querySelectorAll("[placeholder], [title], [aria-label]").forEach((element) => {
+    ["placeholder", "title", "aria-label"].forEach((attr) => {
+      const originalAttr = `data-i18n-${attr}`;
+      if (element.hasAttribute(attr) && !element.hasAttribute(originalAttr)) element.setAttribute(originalAttr, element.getAttribute(attr));
+      const original = element.getAttribute(originalAttr);
+      if (original) element.setAttribute(attr, language === "ko" && KO[original] ? KO[original] : original);
+    });
+  });
+}
 
 /** Split the masked answer on every placeholder so each one can be highlighted
  *  and toggled between its fake and real value. */
@@ -100,7 +155,7 @@ function Toast({ message, onClose }) {
   }, [message, onClose]);
   if (!message) return null;
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-start gap-2 rounded-xl px-4 py-3 max-w-md"
+    <div className="mobile-toast fixed bottom-6 right-6 z-50 flex items-start gap-2 rounded-xl px-4 py-3 max-w-md"
       style={{ background: T.panel, border: `1px solid ${T.danger}60`, boxShadow: "0 12px 32px rgba(0,0,0,.4)" }}>
       <AlertTriangle size={15} color={T.danger} className="mt-0.5 shrink-0" />
       <span style={{ fontFamily: T.mono, fontSize: 12, color: T.text }}>{message}</span>
@@ -350,8 +405,8 @@ function UploadTab({ docs, refresh, notify }) {
         ))}
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
-        <div className="grid text-xs px-4 py-2.5" style={{ gridTemplateColumns: "2.2fr 1.1fr 1.3fr 1.4fr", background: T.panel2, color: T.muted, fontFamily: T.mono, borderBottom: `1px solid ${T.border}` }}>
+      <div className="mobile-scroll rounded-2xl" style={{ border: `1px solid ${T.border}` }}>
+        <div className="document-grid grid text-xs px-4 py-2.5" style={{ background: T.panel2, color: T.muted, fontFamily: T.mono, borderBottom: `1px solid ${T.border}` }}>
           <div>DOCUMENT</div><div>STATUS</div><div>FINDINGS</div><div className="text-right">ACTIONS</div>
         </div>
         {docs.length === 0 && (
@@ -365,8 +420,8 @@ function UploadTab({ docs, refresh, notify }) {
           const running = busy === doc.uid || inProgress;
           return (
             <div key={doc.uid} onClick={() => doc.trace?.length && setFocusUid(doc.uid)}
-              className="grid items-center px-4 py-3" style={{
-                gridTemplateColumns: "2.2fr 1.1fr 1.3fr 1.4fr", background: focused ? T.panel2 : T.panel,
+              className="document-grid grid items-center px-4 py-3" style={{
+                background: focused ? T.panel2 : T.panel,
                 borderBottom: `1px solid ${T.border}`, borderLeft: `2px solid ${focused ? T.accent : "transparent"}`,
                 cursor: doc.trace?.length ? "pointer" : "default",
               }}>
@@ -500,7 +555,7 @@ function ChatMessage({ message, entities }) {
 function DocPicker({ allDocs, selected, onToggle, onClose }) {
   const T = useT();
   return (
-    <div className="absolute z-10 mt-2 w-80 rounded-xl p-2 flex flex-col gap-1"
+    <div className="absolute z-10 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl p-2 flex flex-col gap-1"
       style={{ background: T.panel, border: `1px solid ${T.border}`, boxShadow: "0 12px 32px rgba(0,0,0,.35)" }}>
       <div className="px-2 py-1" style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted }}>SELECT DOCUMENTS</div>
       {allDocs.map((d) => {
@@ -620,7 +675,7 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
   }
 
   return (
-    <div className="grid gap-5" style={{ gridTemplateColumns: "230px 1fr" }}>
+    <div className="chat-grid grid gap-5">
       <div className="flex flex-col gap-2">
         <button onClick={newChat} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
           style={{ background: T.accent, color: T.bg, fontFamily: T.sans }}>
@@ -781,7 +836,7 @@ function ReconstructTab({ docs, notify }) {
           No masked documents yet — process one in "Upload & Mask" first.
         </div>
       ) : (
-        <div className="grid gap-5" style={{ gridTemplateColumns: "260px 1fr" }}>
+        <div className="reconstruct-grid grid gap-5">
           <div className="flex flex-col gap-2">
             <div style={{ fontFamily: T.mono, fontSize: 11, color: T.muted }}>MAP AGAINST</div>
             {ready.map((d) => {
@@ -844,7 +899,7 @@ function NerTagsTab({ notify }) {
   const [tags, setTags] = useState([]);
   const [form, setForm] = useState({ name: "", description: "", status: "PSEUDONYMIZED" });
   const load = () => api("/ner-tags").then((data) => setTags(data.tags)).catch((err) => notify(err.message));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const create = async () => {
     try {
@@ -874,7 +929,7 @@ function NerTagsTab({ notify }) {
         </p>
       </div>
 
-      <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 2fr 1fr auto" }}>
+      <div className="ner-form grid gap-2">
         <label className="flex flex-col gap-1"><span style={{ color: T.muted, fontFamily: T.mono, fontSize: 10 }}>ROOT TAG</span>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value.toUpperCase() })}
             placeholder="NER_TAG" className="rounded-xl px-3 py-2.5 text-sm outline-none" style={field} />
@@ -889,19 +944,19 @@ function NerTagsTab({ notify }) {
             <option>PSEUDONYMIZED</option><option>KEEP</option><option>REMOVED</option>
           </select>
         </label>
-        <button onClick={create} disabled={!form.name.trim()} className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+        <button onClick={create} disabled={!form.name.trim()} className="mobile-full rounded-xl px-4 py-2.5 text-sm font-semibold"
           style={{ background: T.accent, color: T.bg, opacity: form.name.trim() ? 1 : .5, alignSelf: "end" }}>
           <Plus size={15} className="inline mr-1" /> Add
         </button>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${T.border}` }}>
-        <div className="grid px-4 py-2.5 text-xs" style={{ gridTemplateColumns: "1fr 2fr 1fr auto", background: T.panel2, color: T.muted, fontFamily: T.mono }}>
+      <div className="mobile-scroll rounded-2xl" style={{ border: `1px solid ${T.border}` }}>
+        <div className="ner-grid grid px-4 py-2.5 text-xs" style={{ background: T.panel2, color: T.muted, fontFamily: T.mono }}>
           <div>TAG</div><div>MODEL GUIDANCE</div><div>STATUS</div><div>ACTION</div>
         </div>
         {!tags.length && <div className="px-4 py-8 text-center" style={{ background: T.panel, color: T.muted, fontFamily: T.mono, fontSize: 12 }}>No custom tags yet.</div>}
         {tags.map((tag) => (
-          <div key={tag.name} className="grid items-center px-4 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr auto", background: T.panel, borderTop: `1px solid ${T.border}`, fontFamily: T.mono, fontSize: 12 }}>
+          <div key={tag.name} className="ner-grid grid items-center px-4 py-3" style={{ background: T.panel, borderTop: `1px solid ${T.border}`, fontFamily: T.mono, fontSize: 12 }}>
             <span style={{ color: T.accent }}>{tag.name}</span><span style={{ color: T.text }}>{tag.description}</span>
             <Badge tone={statusTone(tag.status)}>{tag.status}</Badge>
             <button onClick={() => remove(tag.name)} className="rounded-lg p-2" title="Delete tag" style={{ background: T.panel2 }}><Trash2 size={13} color={T.danger} /></button>
@@ -1209,7 +1264,8 @@ function ArchitectureTab() {
 
 /* ------------------------------------------------------------------- app --- */
 function App() {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
+  const [language, setLanguage] = useState("en");
   const T = theme === "dark" ? DARK : LIGHT;
   const [docs, setDocs] = useState([]);
   const [health, setHealth] = useState(null);
@@ -1233,15 +1289,30 @@ function App() {
     refresh().catch((e) => setError(e.message));
     api("/health").then(setHealth).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (topTab === "demo") refresh().catch((e) => setError(e.message));
+  }, [topTab, demoTab]);
+  useEffect(() => {
+    const root = document.getElementById("root");
+    let frame = 0;
+    const apply = () => { frame = 0; translateTree(root, language); };
+    const observer = new MutationObserver(() => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    });
+    document.documentElement.lang = language === "ko" ? "ko" : "en";
+    apply();
+    observer.observe(root, { childList: true, characterData: true, subtree: true });
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
+  }, [language]);
 
   const TOP_TABS = [["home", "Home", HomeIcon], ["team", "Team", Users], ["architecture", "Architecture", Cpu], ["demo", "Demo", Sparkles]];
   const DEMO_TABS = [["upload", "Upload & Mask"], ["ner", "NER Tags"], ["chat", "Chat"], ["reconstruct", "Reconstruct"]];
 
   return (
     <ThemeCtx.Provider value={T}>
-      <div className="p-6 md:p-10" style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: T.sans, transition: "background .2s, color .2s" }}>
+      <div className="app-shell p-6 md:p-10" style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: T.sans, transition: "background .2s, color .2s" }}>
         <div className="max-w-5xl mx-auto flex flex-col gap-8">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="app-header flex items-center justify-between flex-wrap gap-3">
             <button onClick={() => setTopTab("home")} className="flex items-center gap-2.5">
               <div className="rounded-xl p-2" style={{ background: T.panel, border: `1px solid ${topTab === "home" ? T.accent : T.border}` }}>
                 <Shield size={18} color={T.accent} />
@@ -1252,8 +1323,8 @@ function App() {
               </div>
             </button>
 
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1 rounded-xl p-1" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
+            <div className="header-controls flex items-center gap-2">
+              <div className="primary-nav flex gap-1 rounded-xl p-1" style={{ background: T.panel, border: `1px solid ${T.border}` }}>
                 {TOP_TABS.map(([id, label, Icon]) => (
                   <button key={id} onClick={() => setTopTab(id)} className="rounded-lg px-3.5 py-2 text-sm flex items-center gap-1.5"
                     style={{ background: topTab === id ? T.accent : "transparent", color: topTab === id ? T.bg : T.muted, fontFamily: T.sans, fontWeight: 600 }}>
@@ -1261,6 +1332,12 @@ function App() {
                   </button>
                 ))}
               </div>
+              <button onClick={() => setLanguage((value) => value === "en" ? "ko" : "en")}
+                aria-label="Switch language" title="Switch language"
+                className="rounded-full px-3 py-2 flex items-center justify-center text-xs font-bold"
+                style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted, fontFamily: T.mono }}>
+                {language === "en" ? "EN" : "KR"}
+              </button>
               <button onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} aria-label="Toggle light/dark mode"
                 className="rounded-full p-2.5 flex items-center justify-center"
                 style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.muted }}>
@@ -1274,7 +1351,7 @@ function App() {
           {topTab === "architecture" && <ArchitectureTab />}
           {topTab === "demo" && (
             <div className="flex flex-col gap-6">
-              <div className="flex gap-1 rounded-xl p-1 w-fit" style={{ background: T.panel2, border: `1px solid ${T.border}` }}>
+              <div className="demo-nav flex gap-1 rounded-xl p-1 w-fit" style={{ background: T.panel2, border: `1px solid ${T.border}` }}>
                 {DEMO_TABS.map(([id, label]) => (
                   <button key={id} onClick={() => setDemoTab(id)} className="rounded-lg px-3.5 py-1.5 text-xs flex items-center gap-1.5"
                     style={{ background: demoTab === id ? T.accent : "transparent", color: demoTab === id ? T.bg : T.muted, fontFamily: T.mono, fontWeight: 600 }}>
