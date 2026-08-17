@@ -128,7 +128,7 @@ numbers before generic account numbers.
 
 Covers Korean and English contract shapes: 주민등록번호, 사업자등록번호, 계좌번호, IBAN, card
 numbers, phone numbers, emails, `…주식회사` / `… Co., Ltd.`, bank names, addresses, person names,
-and internal project codenames. Money and dates are excluded by default so calculations and timeline
+and internal project codenames. Money and dates default to `KEEP` so calculations and timeline
 reasoning stay accurate; users can add them as custom tags when stronger protection is required.
 
 Person names only match inside an explicit person context — `대표이사: 이도현`, `이도현 (서명)`,

@@ -23,4 +23,4 @@ if (Test-Path -LiteralPath $dockerDesktop) {
     Write-Host "Open Docker Desktop, then wait until Docker is running." -ForegroundColor Yellow
 }
 
-Write-Host "Next: docker compose up --build" -ForegroundColor Green
+Write-Host "Next: powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1" -ForegroundColor Green

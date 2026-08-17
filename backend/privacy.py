@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Iterable
 
 # ---------------------------------------------------------------------------
@@ -36,6 +36,8 @@ DEFAULT_TAXONOMY: dict[str, tuple[str, str, str]] = {
     "DATABASE_PASSWORD": ("HIGH", "MASK",    "database passwords and connection credentials"),
     "INTERNAL_SERVER": ("HIGH", "PSEUDONYMIZE", "private IP addresses and internal server hostnames"),
     "CLOUD_ACCOUNT_ID": ("HIGH", "PSEUDONYMIZE", "cloud account, tenant, subscription, and project identifiers"),
+    "MONEY":      ("LOW",    "ALLOW",        "monetary amounts and contract values"),
+    "DATE":       ("LOW",    "ALLOW",        "calendar dates and contractual deadlines"),
     "PHONE":      ("MEDIUM", "PSEUDONYMIZE", "phone number"),
     "EMAIL":      ("MEDIUM", "PSEUDONYMIZE", "employee and contact email addresses"),
     "PERSON":     ("MEDIUM", "PSEUDONYMIZE", "named individual"),
@@ -141,6 +143,9 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("DATABASE_PASSWORD", re.compile(r"(?:db|database)[_ -]?(?:password|passwd|pwd)\s*[:=]\s*['\"]?([^\s'\"]{8,})", re.IGNORECASE)),
     ("INTERNAL_SERVER", re.compile(r"\b((?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})|(?:[A-Za-z0-9-]+\.)+(?:internal|local))\b", re.IGNORECASE)),
     ("CLOUD_ACCOUNT_ID", re.compile(r"(?:cloud[_ -]?account(?:[_ -]?id)?|aws[_ -]?account(?:[_ -]?id)?|tenant[_ -]?id|subscription[_ -]?id|project[_ -]?id)\s*[:=]\s*['\"]?([A-Za-z0-9-]{6,})", re.IGNORECASE)),
+    ("MONEY",      re.compile(r"(?<!\w)(?:[$€£₩]\s?\d[\d,]*(?:\.\d+)?|(?:USD|EUR|GBP|KRW)\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s?(?:USD|EUR|GBP|KRW|원))(?!\w)", re.IGNORECASE)),
+    ("DATE",       re.compile(r"\b(?:19|20)\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])\b")),
+    ("DATE",       re.compile(r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+(?:19|20)\d{2}\b", re.IGNORECASE)),
     # IBAN before CARD: an IBAN's digit groups otherwise look like a card number.
     ("IBAN",       re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b")),
     ("CARD",       re.compile(r"(?<![\w-])(?:\d{4}[-\s]){3}\d{4}(?![\w-])")),
@@ -335,6 +340,22 @@ def _money_like(value: str, seed: int) -> str:
     return fake
 
 
+def _date_like(value: str, seed: int) -> str:
+    """Shift a date while preserving its numeric or English display format."""
+    shifted_days = 7 + seed % 358
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%B %d, %Y", "%B %d %Y",
+                "%b %d, %Y", "%b %d %Y"):
+        try:
+            changed = datetime.strptime(value, fmt) + timedelta(days=shifted_days)
+        except ValueError:
+            continue
+        rendered = changed.strftime(fmt)
+        if re.search(r"\b\d,?\s+\d{4}$", value):
+            rendered = re.sub(r"\b0(\d)(,?\s+\d{4})$", r"\1\2", rendered)
+        return rendered
+    return f"[DATE-{1 + seed % 9999:04d}]"
+
+
 def pseudonymize(entities: list[Entity], seed: str) -> list[Entity]:
     """Assign every entity its fake counterpart. Deterministic for a given seed."""
     used: dict[str, set[str]] = {k: set() for k in ("ORG", "PERSON", "BANK", "ADDRESS", "PROJECT")}
@@ -347,6 +368,8 @@ def pseudonymize(entities: list[Entity], seed: str) -> list[Entity]:
             e.fake = v
         elif t == "MONEY":
             e.fake = _money_like(v, _h(v, seed))
+        elif t == "DATE":
+            e.fake = _date_like(v, _h(v, seed))
         elif t == "PHONE":
             # Keep the carrier/area prefix — it is a format marker, not an identity.
             head, _, tail = v.partition("-")

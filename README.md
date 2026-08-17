@@ -74,7 +74,10 @@ Built-in detection covers:
 - people, organizations, banks, and postal addresses;
 - internal project codenames.
 
-`MONEY`, `MONEY_TEXT`, and `DATE` are intentionally excluded. Amounts and dates stay unchanged.
+`MONEY` and `DATE` are included as editable default tags with `KEEP` handling, so calculations and
+timeline analysis remain accurate. Users can switch either tag to `PSEUDONYMIZED` when privacy is
+more important than preserving exact values. Written-out monetary amounts (`MONEY_TEXT`) remain
+outside deterministic detection.
 
 The detector accepts a local-model finding only when:
 
@@ -112,10 +115,9 @@ stored in memory and disappear when the backend restarts. Editing a default tag 
 deterministic pattern. Because no regex is generated automatically, new custom tags require the
 local semantic detector.
 
-A custom `MONEY` tag with `PSEUDONYMIZED` handling receives a format-aware fake amount instead of
-the generic `[MONEY]` placeholder. Currency markers, separators, decimal places, and written units
-are preserved where possible. Exact fake amounts can be restored, but values calculated from them
-cannot be remapped reliably.
+When `MONEY` or `DATE` is changed to `PSEUDONYMIZED`, it receives a realistic format-aware fake
+instead of a generic placeholder. Exact fake values can be restored, but calculations derived from
+fake amounts cannot be remapped reliably.
 
 ## Requirements
 
@@ -152,22 +154,36 @@ The Windows script uses `winget`; the macOS script uses Homebrew. If that packag
 available, the script prints the official manual download link instead of running an unknown
 installer. After installation, wait until Docker Desktop reports that Docker is running.
 
-3. Start MuffinGuard:
+3. Start MuffinGuard. The startup script tests Docker GPU access and falls back to CPU when a
+compatible GPU is unavailable.
 
-```bash
-docker compose up --build
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 ```
 
-The first start downloads the Docker images and `gemma4:e4b`, so it can take several minutes. Wait
+macOS:
+
+```bash
+chmod +x ./scripts/start.sh
+./scripts/start.sh
+```
+
+The startup script prefers `gemma4:12b` when Docker has at least 14 GiB of memory and automatically
+uses `gemma4:e4b` on smaller Docker environments to prevent the model process from being killed.
+The first start downloads the selected model, so it can take several minutes. Wait
 until the `app` service reports that Uvicorn is running, then open <http://127.0.0.1:8000>. Docker
 starts OCR automatically; no separate frontend, Python, Ollama, or OCR installation is needed.
+
+Docker GPU acceleration is used automatically on supported NVIDIA systems. Docker Desktop for
+macOS does not pass the Apple GPU through to the Ollama container, so Macs use CPU. The 12B model
+needs substantial memory; allocating at least 14 GiB to Docker Desktop enables it. To force a model,
+set `CREW_MODEL=gemma4:12b` or `CREW_MODEL=gemma4:e4b` before running the startup script.
 
 Useful Docker commands:
 
 ```bash
-# Run in the background
-docker compose up --build -d
-
 # Check service health and model-download progress
 docker compose ps
 docker compose logs -f model-init app
@@ -324,7 +340,13 @@ issue. Use sanitized examples that reproduce the problem.
 **Ollama is unavailable**
 
 Run `docker compose ps` and `docker compose logs model-init ollama`. The first model download can
-take several minutes. Restart the stack with `docker compose up --build` after it completes.
+take several minutes. Restart the stack through the system startup script after it completes.
+
+**Ollama returns `500` and `llama-server process has terminated: signal: killed`**
+
+Docker ran out of memory while loading the model. Start through `scripts/start.ps1` or
+`scripts/start.sh` so MuffinGuard selects a model that fits. Alternatively, increase Docker Desktop's
+memory to at least 14 GiB or force the smaller model with `CREW_MODEL=gemma4:e4b`.
 
 **The reasoning panel has no model output**
 

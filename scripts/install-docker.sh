@@ -15,4 +15,4 @@ fi
 
 open -a Docker
 echo "Docker Desktop is starting. Wait until it reports that Docker is running."
-echo "Next: docker compose up --build"
+echo "Next: chmod +x ./scripts/start.sh && ./scripts/start.sh"

@@ -52,7 +52,7 @@ The UI can therefore show statuses such as OCR processing, detecting, pseudonymi
 
 ### 1. Detect
 
-The detector receives the original Markdown. Default and user-defined NER tags are injected into its system prompt, allowing project-specific categories such as `SECRET_KEY` or a custom `MONEY` tag.
+The detector receives the original Markdown. Default and user-defined NER tags are injected into its system prompt, allowing project-specific categories such as `SECRET_KEY`. Default `MONEY` and `DATE` tags use `KEEP` unless the user changes their handling.
 
 Detection combines two sources:
 
@@ -75,7 +75,7 @@ The agent explains the stage, but the authoritative classification is produced a
 
 The pseudonymizer applies replacements locally. Each original value is connected to a generated value in the in-memory mapping store. Repeated occurrences use the same replacement, which keeps the document internally consistent and allows exact restoration later.
 
-Format-aware custom tags can generate value-like replacements. For example, a custom `MONEY` entity should become another monetary value instead of the literal placeholder `[MONEY]`.
+Format-aware tags generate value-like replacements. If `MONEY` or `DATE` is changed to `PSEUDONYMIZED`, it becomes another realistic amount or date instead of a literal placeholder.
 
 ### 4. Verify
 
