@@ -126,40 +126,115 @@ cannot be remapped reliably.
 
 ## Installation
 
+### 1. Clone the project
+
+```bash
+git clone https://github.com/MavinSao/Privacy-Aware-Contract-Review-Agent.git
+cd Privacy-Aware-Contract-Review-Agent
+```
+
+### 2. Create the Python environment
+
+#### Windows PowerShell
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Install Ollama and download the default local model:
+#### macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+cp .env.example .env
+```
+
+Keep the virtual environment active for the remaining commands.
+
+### 3. Install Ollama and Gemma
+
+#### Windows PowerShell
 
 ```powershell
 winget install Ollama.Ollama
 ollama pull gemma4:12b
 ```
 
-To use another installed model, update `CREW_MODEL` in `.env`.
+#### macOS
 
-## Run locally
+Install the [Ollama macOS application](https://ollama.com/download/mac), move it to Applications,
+and open it once so the `ollama` command becomes available. Then run:
 
-From the project root:
+```bash
+ollama pull gemma4:12b
+```
+
+Confirm that Ollama is reachable:
+
+```bash
+curl http://127.0.0.1:11434/api/tags
+```
+
+To use another installed model, set `CREW_MODEL` in `.env` to its exact `ollama list` name.
+
+### 4. Start MuffinGuard
+
+Run the main application from the `backend` directory. It serves both the API and browser UI on
+port `8000`; no separate frontend server is required.
+
+#### Windows PowerShell
 
 ```powershell
 Set-Location backend
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>.
+#### macOS
+
+```bash
+cd backend
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000>. To verify the API connection, open
+<http://127.0.0.1:8000/api/health> or run:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+The health response reports Ollama models, the active CrewAI mode, OCR availability, and the number
+of documents held in memory.
+
+### Port connections
+
+| Port | Service | Required? | Connection |
+| --- | --- | --- | --- |
+| `8000` | MuffinGuard FastAPI UI and API | Yes | Browser and Cloudflare tunnel connect here |
+| `11434` | Ollama | Yes for CrewAI/Gemma; deterministic fallback still works without it | Backend connects through `OLLAMA_HOST` |
+| `10000` | Standalone OCR server | Optional | Backend connects through `OCR_SERVER_URL` |
 
 ### OCR options
 
-For the lightweight standalone OCR server:
+For scanned PDFs and images, return to the project root and install the lightweight standalone OCR
+server dependencies:
 
 ```powershell
-pip install -r requirements-ocr-server.txt
+python -m pip install -r requirements-ocr-server.txt
 python backend\ocr_server.py --port 10000
+```
+
+The same commands on macOS use a forward slash:
+
+```bash
+python -m pip install -r requirements-ocr-server.txt
+python backend/ocr_server.py --port 10000
 ```
 
 Then add this to `.env`:
@@ -167,6 +242,10 @@ Then add this to `.env`:
 ```dotenv
 OCR_SERVER_URL=http://127.0.0.1:10000
 ```
+
+Restart the main application after changing `.env`, then verify the OCR server directly at
+<http://127.0.0.1:10000/health>. Keep `8000` for the main app and `10000` for OCR; they are separate
+processes and cannot share a port.
 
 Alternatively, install in-process PaddleOCR:
 
@@ -186,7 +265,7 @@ before masking; set `OCR_ALLOW_REMOTE=true` only when that exposure is intention
 4. Review the detected values, handling decisions, reasoning output, and masked Markdown.
 5. Use **Redo** after changing tag policy or reviewing verification warnings to rerun all four
    stages from the stored original document.
-6. Open **Chat**, select the processed document, and choose Ollama, OpenAI, or Mistral.
+6. Open **Chat**, select the processed document, and choose Ollama, OpenAI, Claude, or Mistral.
 7. Toggle the response between pseudonymized and locally reconstructed values.
 8. Use **Reconstruct** to restore known placeholders in pasted model output.
 
@@ -196,6 +275,12 @@ Install `cloudflared`:
 
 ```powershell
 winget install --id Cloudflare.cloudflared
+```
+
+On macOS:
+
+```bash
+brew install cloudflared
 ```
 
 Start the FastAPI application, then run this from the project root in another terminal:
@@ -231,6 +316,7 @@ so anyone with the URL can access the running app and its in-memory session data
 | `CREW_MODEL` | `gemma4:12b` | Local detector model |
 | `CREW_ENABLED` | `true` | Use the CrewAI workflow; disable for deterministic fallback |
 | `OPENAI_API_KEY` | unset | Optional OpenAI key |
+| `ANTHROPIC_API_KEY` | unset | Optional Anthropic Claude key |
 | `MISTRAL_API_KEY` | unset | Optional Mistral key |
 | `OCR_SERVER_URL` | unset | OpenAI-compatible OCR endpoint |
 | `OCR_MODEL` | `Unlimited-OCR` | OCR endpoint model name |

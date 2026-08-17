@@ -31,8 +31,13 @@ DEFAULT_TAXONOMY: dict[str, tuple[str, str, str]] = {
     "IBAN":       ("HIGH",   "PSEUDONYMIZE", "IBAN"),
     "BIZNO":      ("HIGH",   "PSEUDONYMIZE", "business registration number"),
     "PROJECT":    ("HIGH",   "PSEUDONYMIZE", "internal project codename"),
+    "API_KEY":    ("HIGH",   "MASK",         "API keys and cloud access keys"),
+    "ACCESS_TOKEN": ("HIGH", "MASK",         "access tokens, bearer tokens, and session tokens"),
+    "DATABASE_PASSWORD": ("HIGH", "MASK",    "database passwords and connection credentials"),
+    "INTERNAL_SERVER": ("HIGH", "PSEUDONYMIZE", "private IP addresses and internal server hostnames"),
+    "CLOUD_ACCOUNT_ID": ("HIGH", "PSEUDONYMIZE", "cloud account, tenant, subscription, and project identifiers"),
     "PHONE":      ("MEDIUM", "PSEUDONYMIZE", "phone number"),
-    "EMAIL":      ("MEDIUM", "PSEUDONYMIZE", "contact email"),
+    "EMAIL":      ("MEDIUM", "PSEUDONYMIZE", "employee and contact email addresses"),
     "PERSON":     ("MEDIUM", "PSEUDONYMIZE", "named individual"),
     "ORG":        ("MEDIUM", "PSEUDONYMIZE", "organization"),
     "BANK":       ("MEDIUM", "PSEUDONYMIZE", "bank name"),
@@ -130,6 +135,12 @@ _SURNAMES = "김이박최정강조윤장임한오서신권황안송류전홍고�
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("RRN",        re.compile(r"\b\d{6}-[1-4]\d{6}\b")),
+    ("API_KEY",    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
+    ("API_KEY",    re.compile(r"(?:api[_ -]?key|secret[_ -]?key)\s*[:=]\s*['\"]?([A-Za-z0-9_./+=-]{16,})", re.IGNORECASE)),
+    ("ACCESS_TOKEN", re.compile(r"(?:access[_ -]?token|bearer)\s*[:=]?\s*['\"]?([A-Za-z0-9_./+=-]{16,})", re.IGNORECASE)),
+    ("DATABASE_PASSWORD", re.compile(r"(?:db|database)[_ -]?(?:password|passwd|pwd)\s*[:=]\s*['\"]?([^\s'\"]{8,})", re.IGNORECASE)),
+    ("INTERNAL_SERVER", re.compile(r"\b((?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})|(?:[A-Za-z0-9-]+\.)+(?:internal|local))\b", re.IGNORECASE)),
+    ("CLOUD_ACCOUNT_ID", re.compile(r"(?:cloud[_ -]?account(?:[_ -]?id)?|aws[_ -]?account(?:[_ -]?id)?|tenant[_ -]?id|subscription[_ -]?id|project[_ -]?id)\s*[:=]\s*['\"]?([A-Za-z0-9-]{6,})", re.IGNORECASE)),
     # IBAN before CARD: an IBAN's digit groups otherwise look like a card number.
     ("IBAN",       re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}\b")),
     ("CARD",       re.compile(r"(?<![\w-])(?:\d{4}[-\s]){3}\d{4}(?![\w-])")),
@@ -278,6 +289,29 @@ def _digits_like(value: str, seed: int) -> str:
     return "".join(out)
 
 
+def _identifier_like(value: str, seed: int) -> str:
+    """Change letters and digits while preserving separators and character case."""
+    out, x = [], seed or 7
+    for ch in value:
+        if ch.isalnum():
+            x = (x * 1103515245 + 12345) & 0xFFFFFFFF
+            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if ch.isupper() else "abcdefghijklmnopqrstuvwxyz"
+            out.append(str(x % 10) if ch.isdigit() else alphabet[x % len(alphabet)])
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _internal_server_like(value: str, seed: int) -> str:
+    if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", value):
+        parts = value.split(".")
+        keep = 2 if parts[:2] == ["192", "168"] or parts[0] == "172" else 1
+        return ".".join(parts[:keep] + [str(1 + (seed >> i * 8) % 254)
+                                       for i in range(len(parts) - keep)])
+    name, dot, suffix = value.rpartition(".")
+    return f"{_identifier_like(name, seed)}{dot}{suffix}"
+
+
 def _money_like(value: str, seed: int) -> str:
     """Change an amount while preserving its currency text and numeric shape."""
     if not re.search(r"\d", value):
@@ -319,6 +353,10 @@ def pseudonymize(entities: list[Entity], seed: str) -> list[Entity]:
             e.fake = f"{head}-{_digits_like(tail, _h(v, seed))}"
         elif t in ("ACCOUNT", "BIZNO", "CARD", "IBAN", "RRN"):
             e.fake = _digits_like(v, _h(v, seed))
+        elif t == "INTERNAL_SERVER":
+            e.fake = _internal_server_like(v, _h(v, seed))
+        elif t == "CLOUD_ACCOUNT_ID":
+            e.fake = _identifier_like(v, _h(v, seed))
         elif t == "BANK":
             pool = _FAKE_BANK if re.search(r"[가-힣]", v) else _FAKE_BANK_EN
             e.fake = _pick_unique(pool, v, seed, used["BANK"])
