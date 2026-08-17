@@ -29,6 +29,7 @@ const STAGES = ["Detect", "Classify", "Pseudonymize", "Verify"];
 const PROVIDERS = [
   { id: "ollama", label: "Local — Ollama", defaultModel: "gemma4:12b", needsKey: false },
   { id: "openai", label: "ChatGPT — OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
+  { id: "anthropic", label: "Claude — Anthropic", defaultModel: "claude-sonnet-4-20250514", needsKey: true },
   { id: "mistral", label: "Mistral", defaultModel: "mistral-large-latest", needsKey: true },
 ];
 
@@ -896,7 +897,7 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
           ))}
           {sending && (
             <div className="flex items-center gap-2" style={{ fontFamily: T.mono, fontSize: 11.5, color: T.muted }}>
-              <Loader2 size={13} className="animate-spin" /> masking → sending → waiting on {provider}…
+              <Loader2 size={13} className="animate-spin" /> sending masked documents → waiting on {provider}…
             </div>
           )}
         </div>
@@ -1377,7 +1378,7 @@ function ArchitectureTab() {
             llm.py — the only outbound network code · masked Markdown only
           </span>
         </div>
-        <Row label="chat model" value="OpenAI · Mistral · Ollama — your choice, key stays in the tab" />
+        <Row label="chat model" value="OpenAI · Claude · Mistral · Ollama — your choice, key stays in the tab" />
         <Row label="agent model" value="local Ollama only (CREW_MODEL, default gemma4:12b)" />
         <Row label="security layer" value="hybrid: local Gemma detection + deterministic validation, masking, and verification" tone={T.accent} />
         <Row label="retrieval" value="none. whole masked document in the prompt — no RAG, no embeddings" />

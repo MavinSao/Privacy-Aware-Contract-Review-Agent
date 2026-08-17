@@ -1,6 +1,6 @@
 """Model Router — the only place in the codebase that talks to an LLM.
 
-Three providers: OpenAI, Mistral, and local Ollama. API keys arrive per request
+Four providers: OpenAI, Claude, Mistral, and local Ollama. API keys arrive per request
 from the browser and are never written to disk or logged.
 
 Callers must pass MASKED text only. `chat()` refuses to run if the caller has not
@@ -18,6 +18,7 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 PROVIDERS = {
     "openai":  {"url": "https://api.openai.com/v1/chat/completions", "needs_key": True,  "default": "gpt-4o-mini"},
+    "anthropic": {"url": "https://api.anthropic.com/v1/messages",       "needs_key": True,  "default": "claude-sonnet-4-20250514"},
     "mistral": {"url": "https://api.mistral.ai/v1/chat/completions", "needs_key": True,  "default": "mistral-large-latest"},
     "ollama":  {"url": f"{OLLAMA_HOST}/api/chat",                    "needs_key": False, "default": "gemma4:12b"},
 }
@@ -28,7 +29,7 @@ class LLMError(RuntimeError):
 
 
 def is_external(provider: str) -> bool:
-    return provider in ("openai", "mistral")
+    return provider != "ollama"
 
 
 def _redact(message: str, key: str) -> str:
@@ -58,6 +59,14 @@ def chat(provider: str, model: str | None, api_key: str | None,
     if provider == "ollama":
         body = {"model": model, "messages": messages, "stream": False}
         headers = {}
+    elif provider == "anthropic":
+        body = {
+            "model": model,
+            "max_tokens": 4096,
+            "system": "\n\n".join(m["content"] for m in messages if m["role"] == "system"),
+            "messages": [m for m in messages if m["role"] in ("user", "assistant")],
+        }
+        headers = {"x-api-key": key, "anthropic-version": "2023-06-01"}
     else:
         body = {"model": model, "messages": messages, "temperature": 0.2}
         headers = {"Authorization": f"Bearer {key}"}
@@ -78,6 +87,9 @@ def chat(provider: str, model: str | None, api_key: str | None,
     data = response.json()
     if provider == "ollama":
         return (data.get("message") or {}).get("content", "").strip()
+    if provider == "anthropic":
+        return "\n".join(block["text"] for block in data.get("content", [])
+                          if block.get("type") == "text").strip()
     return data["choices"][0]["message"]["content"].strip()
 
 

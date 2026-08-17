@@ -303,7 +303,7 @@ SYSTEM_PROMPT = (
 class ChatRequest(BaseModel):
     doc_uids: list[str]
     question: str
-    provider: Literal["openai", "mistral", "ollama"] = "ollama"
+    provider: Literal["openai", "anthropic", "mistral", "ollama"] = "ollama"
     model: str | None = None
     api_key: str | None = None
     history: list[dict[str, str]] = []
@@ -319,7 +319,7 @@ class SavedChatSession(BaseModel):
 class ChatStateRequest(BaseModel):
     sessions: list[SavedChatSession]
     activeId: str = ""
-    provider: Literal["openai", "mistral", "ollama"] = "ollama"
+    provider: Literal["openai", "anthropic", "mistral", "ollama"] = "ollama"
     model: str = "gemma4:12b"
     input: str = ""
 

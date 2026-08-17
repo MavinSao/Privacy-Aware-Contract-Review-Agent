@@ -91,7 +91,9 @@ This prevents invented values and unauthorized entity types from entering the ma
 
 The project does not run a post-mask leak scanner. Detection quality therefore defines the
 privacy boundary: anything missed by both detection methods remains unchanged. Review the output
-before sending highly sensitive documents to an external provider.
+before sending highly sensitive documents to an external provider. Chat supports local Ollama,
+OpenAI, Anthropic Claude, and Mistral; provider API keys stay in the browser tab unless configured
+through local environment variables.
 
 ## Custom NER tags
 
