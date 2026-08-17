@@ -1,0 +1,62 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  model-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${CREW_MODEL:-gemma4:e4b}"]
+    restart: "no"
+
+  ocr:
+    build:
+      context: .
+      target: ocr
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      target: app
+    restart: unless-stopped
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+      ocr:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      CREW_MODEL: ${CREW_MODEL:-gemma4:e4b}
+      CREW_ENABLED: ${CREW_ENABLED:-true}
+      OCR_SERVER_URL: http://ocr:10000
+      OCR_ALLOW_REMOTE: "true"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+volumes:
+  ollama-data:

@@ -1,0 +1,10 @@
+.git
+.venv
+.runtime
+.claude
+.env
+__pycache__
+*.pyc
+*.audit.md
+docs
+privacy-agent-prototype.jsx

@@ -119,143 +119,66 @@ cannot be remapped reliably.
 
 ## Requirements
 
-- Python 3.10+
-- Ollama for contextual detection and local chat
-- An optional OCR server or PaddleOCR for scanned PDFs and images
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows or macOS
 - Internet access when loading the UI dependencies from their CDNs
 
 ## Installation
 
-### 1. Clone the project
+Docker handles Python, dependencies, Ollama, Gemma, OCR, and all internal service connections.
+
+1. Clone this repository or download and extract its ZIP file:
 
 ```bash
 git clone https://github.com/MavinSao/Privacy-Aware-Contract-Review-Agent.git
 cd Privacy-Aware-Contract-Review-Agent
 ```
 
-### 2. Create the Python environment
+2. Install and start Docker Desktop with the script for your system.
 
-#### Windows PowerShell
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-```
-
-#### macOS
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp .env.example .env
-```
-
-Keep the virtual environment active for the remaining commands.
-
-### 3. Install Ollama and Gemma
-
-#### Windows PowerShell
+Windows PowerShell:
 
 ```powershell
-winget install Ollama.Ollama
-ollama pull gemma4:12b
+powershell -ExecutionPolicy Bypass -File .\scripts\install-docker.ps1
 ```
 
-#### macOS
-
-Install the [Ollama macOS application](https://ollama.com/download/mac), move it to Applications,
-and open it once so the `ollama` command becomes available. Then run:
+macOS:
 
 ```bash
-ollama pull gemma4:12b
+chmod +x ./scripts/install-docker.sh
+./scripts/install-docker.sh
 ```
 
-Confirm that Ollama is reachable:
+The Windows script uses `winget`; the macOS script uses Homebrew. If that package manager is not
+available, the script prints the official manual download link instead of running an unknown
+installer. After installation, wait until Docker Desktop reports that Docker is running.
+
+3. Start MuffinGuard:
 
 ```bash
-curl http://127.0.0.1:11434/api/tags
+docker compose up --build
 ```
 
-To use another installed model, set `CREW_MODEL` in `.env` to its exact `ollama list` name.
+The first start downloads the Docker images and `gemma4:e4b`, so it can take several minutes. Wait
+until the `app` service reports that Uvicorn is running, then open <http://127.0.0.1:8000>. Docker
+starts OCR automatically; no separate frontend, Python, Ollama, or OCR installation is needed.
 
-### 4. Start MuffinGuard
-
-Run the main application from the `backend` directory. It serves both the API and browser UI on
-port `8000`; no separate frontend server is required.
-
-#### Windows PowerShell
-
-```powershell
-Set-Location backend
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-#### macOS
+Useful Docker commands:
 
 ```bash
-cd backend
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
+# Run in the background
+docker compose up --build -d
+
+# Check service health and model-download progress
+docker compose ps
+docker compose logs -f model-init app
+
+# Stop the stack without deleting the downloaded model
+docker compose down
 ```
 
-Open <http://127.0.0.1:8000>. To verify the API connection, open
-<http://127.0.0.1:8000/api/health> or run:
-
-```bash
-curl http://127.0.0.1:8000/api/health
-```
-
-The health response reports Ollama models, the active CrewAI mode, OCR availability, and the number
-of documents held in memory.
-
-### Port connections
-
-| Port | Service | Required? | Connection |
-| --- | --- | --- | --- |
-| `8000` | MuffinGuard FastAPI UI and API | Yes | Browser and Cloudflare tunnel connect here |
-| `11434` | Ollama | Yes for CrewAI/Gemma; deterministic fallback still works without it | Backend connects through `OLLAMA_HOST` |
-| `10000` | Standalone OCR server | Optional | Backend connects through `OCR_SERVER_URL` |
-
-### OCR options
-
-For scanned PDFs and images, return to the project root and install the lightweight standalone OCR
-server dependencies:
-
-```powershell
-python -m pip install -r requirements-ocr-server.txt
-python backend\ocr_server.py --port 10000
-```
-
-The same commands on macOS use a forward slash:
-
-```bash
-python -m pip install -r requirements-ocr-server.txt
-python backend/ocr_server.py --port 10000
-```
-
-Then add this to `.env`:
-
-```dotenv
-OCR_SERVER_URL=http://127.0.0.1:10000
-```
-
-Restart the main application after changing `.env`, then verify the OCR server directly at
-<http://127.0.0.1:10000/health>. Keep `8000` for the main app and `10000` for OCR; they are separate
-processes and cannot share a port.
-
-Alternatively, install in-process PaddleOCR:
-
-```powershell
-pip install -r requirements-ocr.txt
-```
-
-Digital PDFs and text-based formats work without OCR. Scanned PDFs and images require one of the
-OCR options. Remote OCR endpoints are rejected by default because OCR receives the raw document
-before masking; set `OCR_ALLOW_REMOTE=true` only when that exposure is intentional.
+The model remains in the `ollama-data` Docker volume, so later starts do not download it again. Only
+MuffinGuard port `8000` is exposed; Ollama and OCR remain private inside Docker. Open
+<http://127.0.0.1:8000/api/health> to check all service connections.
 
 ## Demo workflow
 
@@ -283,13 +206,10 @@ On macOS:
 brew install cloudflared
 ```
 
-Start the FastAPI application, then run this from the project root in another terminal:
+Keep the Docker stack running, then run this from the project root in another terminal:
 
 ```powershell
 .\scripts\tunnel.ps1
-
-# Different application port
-.\scripts\tunnel.ps1 -Port 8080
 ```
 
 On macOS or Linux:
@@ -297,9 +217,6 @@ On macOS or Linux:
 ```bash
 chmod +x ./scripts/tunnel.sh
 ./scripts/tunnel.sh
-
-# Different application port
-./scripts/tunnel.sh 8080
 ```
 
 The script prints a temporary `https://*.trycloudflare.com` URL. No Cloudflare account is needed.
@@ -398,7 +315,7 @@ issue. Use sanitized examples that reproduce the problem.
 - Detection and OCR quality determine what is protected.
 - Custom tags depend on the local semantic model.
 - The deterministic fallback cannot detect newly invented custom categories.
-- There is no post-mask leak detection.
+- Post-mask verification warns about unchanged values but does not block chat.
 - Browser dependencies are loaded from CDNs instead of a bundled frontend build.
 - The application has no authentication and is not production-ready.
 
@@ -406,22 +323,23 @@ issue. Use sanitized examples that reproduce the problem.
 
 **Ollama is unavailable**
 
-Run `ollama serve`, check installed models with `ollama list`, and confirm that `CREW_MODEL`
-matches one of them.
+Run `docker compose ps` and `docker compose logs model-init ollama`. The first model download can
+take several minutes. Restart the stack with `docker compose up --build` after it completes.
 
 **The reasoning panel has no model output**
 
-The application probably used deterministic fallback. Check the backend console and verify that
-Ollama and the configured model are available.
+The application probably used deterministic fallback. Check `docker compose logs app model-init`
+and confirm that the model download completed.
 
 **A scanned PDF or image cannot be converted**
 
-Start the standalone OCR server or install `requirements-ocr.txt`. Digital PDFs do not need OCR.
+Check `docker compose ps ocr` and `docker compose logs ocr`, then restart it with
+`docker compose restart ocr`. Digital PDFs do not need OCR.
 
 **A custom tag is not detected**
 
-Confirm that Ollama is active, make the detection guidance concrete, and start a new scan. Custom
-tags do not update previous scan results.
+Confirm that `ollama`, `model-init`, and `app` are healthy in `docker compose ps`, make the detection
+guidance concrete, and start a new scan. Custom tags do not update previous scan results.
 
 ## Copyright
 
