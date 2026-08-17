@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Privacy-Aware Contract Review Agent</title>
+    <title>MuffinGuard — Privacy-Aware Contract Review</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
@@ -16,7 +16,8 @@
       .document-grid { grid-template-columns: 2.2fr 1.1fr 1.3fr 1.4fr; min-width: 720px; }
       .chat-grid { grid-template-columns: 230px minmax(0, 1fr); }
       .reconstruct-grid { grid-template-columns: 260px minmax(0, 1fr); }
-      .ner-form, .ner-grid { grid-template-columns: 1fr 2fr 1fr auto; }
+      .ner-form { grid-template-columns: 1fr 2fr 1fr auto; }
+      .ner-grid { grid-template-columns: 1fr .8fr 2fr 1fr auto; }
       .mobile-scroll { overflow-x: auto; }
       .chat-markdown > :first-child { margin-top: 0; }
       .chat-markdown > :last-child { margin-bottom: 0; }
@@ -77,7 +78,7 @@
         .demo-nav button svg { display: none; }
         .chat-grid, .reconstruct-grid, .ner-form { grid-template-columns: minmax(0, 1fr); }
         .chat-messages { height: 52vh; min-height: 260px; }
-        .ner-grid { min-width: 640px; }
+        .ner-grid { min-width: 760px; }
         .mobile-full { width: 100% !important; }
         .mobile-toast { left: 16px !important; right: 16px !important; bottom: 16px !important; }
       }

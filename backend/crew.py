@@ -65,12 +65,11 @@ Use an empty entities array when there are none."""
 
 
 def _semantic_system() -> str:
-    custom = "".join(
+    type_guidance = "".join(
         f"\n- {item['name']}: {item['description']}"
-        for item in privacy.CUSTOM_TYPES.values()
+        for item in privacy.list_types()
     )
-    guidance = f"\nCustom type guidance:{custom}" if custom else ""
-    return f"{_SEMANTIC_SYSTEM}\nAllowed types: {', '.join(privacy.TAXONOMY)}.{guidance}"
+    return f"{_SEMANTIC_SYSTEM}\nAllowed types: {', '.join(privacy.TAXONOMY)}.\nType guidance:{type_guidance}"
 
 
 def _json_object(text: str) -> dict[str, Any]:

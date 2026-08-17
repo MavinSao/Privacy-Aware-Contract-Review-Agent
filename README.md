@@ -27,10 +27,10 @@ Document
 OCR / conversion
    |
    v
-Detect -> Classify -> Pseudonymize
-                            |
-                            v
-                     Masked Markdown
+Detect -> Classify -> Pseudonymize -> Verify
+                                      |
+                                      v
+                               Masked Markdown
                             |
                             v
                   Ollama / OpenAI / Mistral
@@ -39,11 +39,12 @@ Detect -> Classify -> Pseudonymize
                     Local reconstruction
 ```
 
-The privacy workflow has three main steps:
+The privacy workflow has four main steps:
 
 1. **Detect** — find sensitive values with deterministic patterns and a local Gemma model.
 2. **Classify** — assign `PSEUDONYMIZED`, `KEEP`, or `REMOVED` to every accepted value.
 3. **Pseudonymize** — replace or redact values before the document can be sent to a chat model.
+4. **Verify** — report detected original values that remain without blocking completion.
 
 ## Main features
 
@@ -53,6 +54,7 @@ The privacy workflow has three main steps:
 - Validates model findings against the original document and the authorized NER taxonomy.
 - Supports custom NER tags for project-specific privacy and security categories.
 - Shows the detector prompt, loading state, validated output, and agent explanation progressively.
+- Runs a non-blocking post-mask verification and shows unchanged-tag reminders in Chat.
 - Provides chat through local Ollama, OpenAI, or Mistral using only masked documents.
 - Renders model answers as Markdown and can reconstruct pseudonymized values locally.
 - Downloads masked Markdown and audit reports.
@@ -93,7 +95,9 @@ before sending highly sensitive documents to an external provider.
 
 ## Custom NER tags
 
-Use **Demo -> NER Tags** to teach the detector additional security or privacy categories.
+Use **Demo -> NER Tags** to review the complete detection policy. The table includes both default
+and custom categories. Select a row to update its detection guidance or handling; select it again
+to cancel editing. Default tags can be reset but not deleted, while custom tags can be deleted.
 
 | Field | Meaning | Example |
 | --- | --- | --- |
@@ -101,9 +105,15 @@ Use **Demo -> NER Tags** to teach the detector additional security or privacy ca
 | Detection guidance | Values, patterns, or keywords that belong to the category | `API keys, access tokens, credentials` |
 | Handling | How matching values should be processed | `REMOVED` |
 
-Custom tags are injected into the local detector prompt for new scans. They are stored in memory
-and disappear when the backend restarts. Because no regex is generated automatically, custom tags
-require the local semantic detector.
+All tag descriptions are injected into the local detector prompt for new scans. Policy changes are
+stored in memory and disappear when the backend restarts. Editing a default tag does not change its
+deterministic pattern. Because no regex is generated automatically, new custom tags require the
+local semantic detector.
+
+A custom `MONEY` tag with `PSEUDONYMIZED` handling receives a format-aware fake amount instead of
+the generic `[MONEY]` placeholder. Currency markers, separators, decimal places, and written units
+are preserved where possible. Exact fake amounts can be restored, but values calculated from them
+cannot be remapped reliably.
 
 ## Requirements
 
@@ -172,9 +182,11 @@ before masking; set `OCR_ALLOW_REMOTE=true` only when that exposure is intention
 2. Open **Upload & Mask** and upload a document or select a bundled sample.
 3. Follow the table status through `OCR processing`, `detecting`, `masking`, and `Done`.
 4. Review the detected values, handling decisions, reasoning output, and masked Markdown.
-5. Open **Chat**, select the processed document, and choose Ollama, OpenAI, or Mistral.
-6. Toggle the response between pseudonymized and locally reconstructed values.
-7. Use **Reconstruct** to restore known placeholders in pasted model output.
+5. Use **Redo** after changing tag policy or reviewing verification warnings to rerun all four
+   stages from the stored original document.
+6. Open **Chat**, select the processed document, and choose Ollama, OpenAI, or Mistral.
+7. Toggle the response between pseudonymized and locally reconstructed values.
+8. Use **Reconstruct** to restore known placeholders in pasted model output.
 
 ## Temporary demo with Cloudflare Tunnel
 
@@ -240,8 +252,10 @@ Interactive documentation is available at `/docs` while the application is runni
 | `POST` | `/api/documents/{uid}/mask` | Run pseudonymization |
 | `GET` | `/api/documents/{uid}/download` | Download raw, masked, or audit Markdown |
 | `DELETE` | `/api/documents/{uid}` | Remove a session document |
-| `GET` | `/api/ner-tags` | List custom NER tags |
-| `POST` | `/api/ner-tags` | Create or replace a custom NER tag |
+| `GET` | `/api/ner-tags` | List default and custom NER tags |
+| `POST` | `/api/ner-tags` | Create a custom NER tag |
+| `PUT` | `/api/ner-tags/{name}` | Update tag guidance or handling |
+| `POST` | `/api/ner-tags/{name}/reset` | Reset a default tag |
 | `DELETE` | `/api/ner-tags/{name}` | Delete a custom NER tag |
 | `POST` | `/api/chat` | Chat about processed documents |
 | `GET` | `/api/chat-state` | Load in-memory chat sessions after a browser refresh |

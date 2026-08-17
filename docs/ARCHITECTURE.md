@@ -8,8 +8,8 @@ in `backend/` and `frontend/` — if you change one, change the other.
 ## 1. The one-sentence version
 
 A file becomes Markdown, local Gemma and deterministic patterns find sensitive values, Python
-validates and masks them, only the masked Markdown may reach an external model, and real values are
-put back locally when the answer returns.
+validates and masks them, a non-blocking verifier reports unchanged originals, only the masked
+Markdown may reach a chat model, and real values are put back locally when the answer returns.
 
 ---
 
@@ -51,7 +51,8 @@ put back locally when the answer returns.
 
 The boundary that matters: **`privacy.py` imports no network library at all.** Raw values
 physically cannot leave the process through it. `llm.py` is the only file that opens a socket, and
-it refuses to send anything an explicit leak scan has not cleared.
+the application uses for provider requests. Verification reports unchanged detected originals but
+does not block completion or outbound chat.
 
 ---
 
@@ -66,7 +67,7 @@ This is the question people get wrong about privacy tools, so it is worth statin
 | **Contract review** (chat) | **user's choice** — OpenAI, Mistral, or Ollama | This is where real capability matters, and it is exactly the step that only ever sees masked text. |
 
 Gemma expands contextual coverage; deterministic Python remains authoritative for validation,
-replacement, and the outbound known-value gate. If Ollama is unavailable, the trace explicitly
+replacement, and post-mask verification. If Ollama is unavailable, the trace explicitly
 marks the reduced-coverage deterministic fallback.
 
 ---
@@ -117,7 +118,8 @@ lines collapsed — so detection sees predictable text regardless of source form
 
 ## 5. The security layer in detail (`privacy.py`)
 
-Three local stages. Detection is hybrid; validation, classification, and replacement remain deterministic.
+Four local stages. Detection is hybrid; validation, classification, replacement, and verification
+remain deterministic.
 
 ### Detect
 `_PATTERNS` — an ordered list of `(type, regex)`. Order is load-bearing: IBAN is tested before
@@ -125,9 +127,9 @@ card numbers because an IBAN's digit groups look exactly like a card, and busine
 numbers before generic account numbers.
 
 Covers Korean and English contract shapes: 주민등록번호, 사업자등록번호, 계좌번호, IBAN, card
-numbers, phone numbers, emails, ₩/$/€/£ amounts, Korean written amounts (`금 팔천오백만원정`),
-Korean and English dates, `…주식회사` / `… Co., Ltd.`, bank names, addresses, person names, and
-internal project codenames.
+numbers, phone numbers, emails, `…주식회사` / `… Co., Ltd.`, bank names, addresses, person names,
+and internal project codenames. Money and dates are excluded by default so calculations and timeline
+reasoning stay accurate; users can add them as custom tags when stronger protection is required.
 
 Person names only match inside an explicit person context — `대표이사: 이도현`, `이도현 (서명)`,
 `Representative: Dohyun Lee` — so ordinary Korean words are never swapped out by accident. (This
@@ -154,6 +156,13 @@ companies into one fake name would silently corrupt the review.
 
 Everything is seeded by document UID, so the same document always produces the same mapping.
 
+### Verify — non-blocking post-mask checker
+After masking, deterministic Python checks whether each detected original value is still present.
+Intentional `KEEP` values become reminders. Originals marked `PSEUDONYMIZED` or `REMOVED` that
+remain become risk warnings. The result appears in the document table, reasoning trace, and Chat
+document reminder. Verification never blocks completion; users can change the tag policy and use
+**Redo** to run all four stages again from the stored original Markdown.
+
 ### Remap
 `fake → real`, longest-match-first, in this process, no network. `MASK`-ed values are never
 restored — there is nothing to restore them to, which is the point.
@@ -168,12 +177,18 @@ restored — there is nothing to restore them to, which is the point.
 | `GET` | `/api/samples` | bundled demo documents |
 | `POST` | `/api/documents` | upload → temp file → Markdown → store, temp file deleted |
 | `POST` | `/api/documents/sample` | same, from `samples/` |
-| `POST` | `/api/documents/{uid}/run` | run the CrewAI privacy chain |
+| `POST` | `/api/documents/{uid}/scan` | start or redo detection from the original Markdown |
+| `POST` | `/api/documents/{uid}/mask` | pseudonymize and verify classified values |
 | `GET` | `/api/documents` | list (never includes raw Markdown) |
 | `GET` | `/api/documents/{uid}/download?variant=masked\|raw\|audit` | export |
 | `DELETE` | `/api/documents/{uid}` | drop from the store |
 | `POST` | `/api/chat` | send masked → remap answer |
+| `GET/PUT` | `/api/chat-state` | load or save in-memory chat state, excluding API keys |
 | `POST` | `/api/remap` | restore real values in pasted text |
+| `GET/POST` | `/api/ner-tags` | list the policy or create a custom tag |
+| `PUT` | `/api/ner-tags/{name}` | update default or custom tag guidance/handling |
+| `POST` | `/api/ner-tags/{name}/reset` | reset a default tag |
+| `DELETE` | `/api/ner-tags/{name}` | delete a custom tag |
 
 `Document.public()` takes an `include_raw` flag that defaults to **False**, so the raw Markdown is
 opt-in on the server side and never reaches the browser through a list or run response.
@@ -191,7 +206,7 @@ Exportable as Markdown via `?variant=audit`.
 Zero build step — React 18, Tailwind and lucide load from CDN, Babel compiles the JSX in the
 browser, FastAPI serves the two files. No Node, no bundler, no `npm install`.
 
-Four top tabs (Home, Team, Architecture, Demo) and three demo tabs (Upload & Mask, Chat,
+Four top tabs (Home, Team, Architecture, Demo) and four demo tabs (Upload & Mask, NER Tags, Chat,
 Reconstruct). One `<App>` owns all shared state:
 
 - `docs` — the document list, refreshed from `/api/documents` after every mutation
@@ -238,13 +253,13 @@ Full detail — including memory layers, the tab-switch fix, and the scaling pla
 
 | Layer | Holds | Lifetime |
 | --- | --- | --- |
-| Browser (React state) | chat sessions, masked answers, remapped answers for display | page reload clears it |
-| Server (`privacy.STORE`, in-process dict) | raw Markdown, masked Markdown, mappings, audit log | server restart clears it |
+| Browser (React state) | active UI state and provider API key | page reload clears it |
+| Server (in-process memory) | raw/masked Markdown, mappings, audit log, tag policy, chat history | server restart clears it |
 | Disk | **nothing** | — |
 | Provider | masked Markdown only | their retention policy |
 
-No database, no cache file, no `sessionStorage`. API keys are held in one React state field, sent
-with the single request that needs them, and never logged.
+No database, cache file, `localStorage`, or `sessionStorage`. API keys are held in React state,
+sent with the single request that needs them, and never persisted with chat history.
 
 ---
 

@@ -24,7 +24,7 @@ from typing import Any, Callable, Iterable
 #   MASK          redact entirely — too dangerous to fake
 #   ALLOW         keep as-is, the analysis needs it (percentages, durations)
 
-TAXONOMY: dict[str, tuple[str, str, str]] = {
+DEFAULT_TAXONOMY: dict[str, tuple[str, str, str]] = {
     "RRN":        ("HIGH",   "MASK",         "resident registration number"),
     "CARD":       ("HIGH",   "MASK",         "payment card number"),
     "ACCOUNT":    ("HIGH",   "PSEUDONYMIZE", "bank account number"),
@@ -38,8 +38,25 @@ TAXONOMY: dict[str, tuple[str, str, str]] = {
     "BANK":       ("MEDIUM", "PSEUDONYMIZE", "bank name"),
     "ADDRESS":    ("MEDIUM", "PSEUDONYMIZE", "postal address"),
 }
+TAXONOMY = DEFAULT_TAXONOMY.copy()
 BUILTIN_TYPES = frozenset(TAXONOMY)
 CUSTOM_TYPES: dict[str, dict[str, str]] = {}
+_ACTIONS = {"PSEUDONYMIZED": "PSEUDONYMIZE", "KEEP": "ALLOW", "REMOVED": "MASK"}
+
+
+def _type_item(name: str) -> dict[str, Any]:
+    risk, action, description = TAXONOMY[name]
+    source = "DEFAULT" if name in BUILTIN_TYPES else "CUSTOM"
+    original = DEFAULT_TAXONOMY.get(name)
+    return {
+        "name": name, "description": description, "status": status_for(action), "source": source,
+        "modified": bool(original and TAXONOMY[name] != original),
+        "originalStatus": status_for(original[1]) if original else None,
+    }
+
+
+def list_types() -> list[dict[str, Any]]:
+    return [_type_item(name) for name in TAXONOMY]
 
 
 def add_custom_type(name: str, description: str, status: str) -> dict[str, str]:
@@ -48,13 +65,35 @@ def add_custom_type(name: str, description: str, status: str) -> dict[str, str]:
         raise ValueError("Tag must be 2-32 characters using A-Z, 0-9, or underscore.")
     if name in BUILTIN_TYPES:
         raise ValueError("Built-in tags cannot be replaced.")
-    actions = {"PSEUDONYMIZED": "PSEUDONYMIZE", "KEEP": "ALLOW", "REMOVED": "MASK"}
-    if status not in actions:
+    if name in CUSTOM_TYPES:
+        raise ValueError("Tag already exists. Select it in the table to update it.")
+    if status not in _ACTIONS:
         raise ValueError("Status must be PSEUDONYMIZED, KEEP, or REMOVED.")
     item = {"name": name, "description": description.strip() or name.lower().replace("_", " "), "status": status}
     CUSTOM_TYPES[name] = item
-    TAXONOMY[name] = ("HIGH", actions[status], item["description"])
-    return item
+    TAXONOMY[name] = ("HIGH", _ACTIONS[status], item["description"])
+    return _type_item(name)
+
+
+def update_type(name: str, description: str, status: str) -> dict[str, Any]:
+    name = name.strip().upper()
+    if name not in TAXONOMY:
+        raise ValueError("Unknown NER tag.")
+    if status not in _ACTIONS:
+        raise ValueError("Status must be PSEUDONYMIZED, KEEP, or REMOVED.")
+    description = description.strip() or name.lower().replace("_", " ")
+    TAXONOMY[name] = (TAXONOMY[name][0], _ACTIONS[status], description)
+    if name in CUSTOM_TYPES:
+        CUSTOM_TYPES[name] = {"name": name, "description": description, "status": status}
+    return _type_item(name)
+
+
+def reset_builtin_type(name: str) -> dict[str, Any]:
+    name = name.strip().upper()
+    if name not in BUILTIN_TYPES:
+        raise ValueError("Only default NER tags can be reset.")
+    TAXONOMY[name] = DEFAULT_TAXONOMY[name]
+    return _type_item(name)
 
 
 def remove_custom_type(name: str) -> bool:
@@ -239,6 +278,29 @@ def _digits_like(value: str, seed: int) -> str:
     return "".join(out)
 
 
+def _money_like(value: str, seed: int) -> str:
+    """Change an amount while preserving its currency text and numeric shape."""
+    if not re.search(r"\d", value):
+        amount = 100_000 + seed % 9_900_000
+        if re.search(r"원|KRW", value, re.IGNORECASE):
+            return f"{amount:,}원"
+        if re.search(r"€|EUR|euros?", value, re.IGNORECASE):
+            return f"€{amount:,}"
+        if re.search(r"£|GBP|pounds?", value, re.IGNORECASE):
+            return f"£{amount:,}"
+        return f"${amount:,}" if re.search(r"\$|USD|dollars?", value, re.IGNORECASE) else f"{amount:,}"
+
+    chars = list(_digits_like(value, seed))
+    first = next(i for i, char in enumerate(chars) if char.isdigit())
+    chars[first] = str(1 + seed % 9)
+    fake = "".join(chars)
+    if fake == value:
+        last = max(i for i, char in enumerate(chars) if char.isdigit())
+        chars[last] = str((int(chars[last]) + 1) % 10)
+        fake = "".join(chars)
+    return fake
+
+
 def pseudonymize(entities: list[Entity], seed: str) -> list[Entity]:
     """Assign every entity its fake counterpart. Deterministic for a given seed."""
     used: dict[str, set[str]] = {k: set() for k in ("ORG", "PERSON", "BANK", "ADDRESS", "PROJECT")}
@@ -249,6 +311,8 @@ def pseudonymize(entities: list[Entity], seed: str) -> list[Entity]:
             e.fake = f"[REDACTED-{t}]"
         elif e.action == "ALLOW":
             e.fake = v
+        elif t == "MONEY":
+            e.fake = _money_like(v, _h(v, seed))
         elif t == "PHONE":
             # Keep the carrier/area prefix — it is a format marker, not an identity.
             head, _, tail = v.partition("-")
@@ -335,6 +399,7 @@ class Document:
     entities: list[Entity] = field(default_factory=list)
     trace: list[dict[str, Any]] = field(default_factory=list)
     sensitivity: dict[str, Any] = field(default_factory=dict)
+    verification: list[dict[str, Any]] = field(default_factory=list)
     status: str = "queued"
     source: str = ""
     audit: list[dict[str, Any]] = field(default_factory=list)
@@ -356,6 +421,7 @@ class Document:
             "entities": [e.public() for e in self.entities],
             "trace": self.trace,
             "sensitivity": self.sensitivity,
+            "verification": self.verification,
             "masked_markdown": self.masked_markdown,
             "audit": self.audit,
         }
@@ -487,7 +553,23 @@ def mask_pipeline(markdown: str, entities: list[Entity], seed: str,
          "Replaced every sensitive value with its selected handling result.",
          [{"type": e.type, "real": e.real, "fake": e.fake} for e in entities])
 
-    return {"entities": entities, "masked": masked, "trace": steps}
+    verification = [{
+        "type": e.type,
+        "value": e.real,
+        "status": status_for(e.action),
+        "risky": e.action != "ALLOW",
+        "reason": ("Original value remained after replacement" if e.action != "ALLOW"
+                   else "Original value was intentionally kept by policy"),
+    } for e in entities if e.real and e.real in masked]
+    risky = sum(1 for item in verification if item["risky"])
+    kept = len(verification) - risky
+    summary = ("Verification complete — no detected original values remain."
+               if not verification else
+               f"Verification found {len(verification)} original values still present: "
+               f"{risky} risky and {kept} intentionally kept. Processing continues.")
+    step("verify", "Post-Mask Verification Checker", summary, verification)
+
+    return {"entities": entities, "masked": masked, "verification": verification, "trace": steps}
 
 
 def run_pipeline(markdown: str, seed: str, on_step: Callable[[dict], None] | None = None,
@@ -502,6 +584,7 @@ def run_pipeline(markdown: str, seed: str, on_step: Callable[[dict], None] | Non
     return {
         "entities": masked["entities"],
         "masked": masked["masked"],
+        "verification": masked["verification"],
         "sensitivity": scanned["sensitivity"],
         "trace": scanned["trace"] + masked["trace"],
     }

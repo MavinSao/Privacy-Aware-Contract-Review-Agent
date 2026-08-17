@@ -167,19 +167,20 @@ def _kickoff_scan(doc: Document) -> None:
     doc.trace = []
     doc.entities = []
     doc.sensitivity = {}
+    doc.verification = []
     doc.masked_markdown = ""
     threading.Thread(target=_scan_in_background, args=(doc,), daemon=True).start()
 
 
 @app.post("/api/documents/{uid}/scan", status_code=202)
 def scan_document(uid: str) -> dict[str, Any]:
-    """(Re-)run Detect -> Classify. Upload already does this automatically; this
-    endpoint is for re-scanning (e.g. Ollama came up after the first pass)."""
+    """Restart the full workflow from the stored original document."""
     doc = STORE.get(uid)
     if not doc:
         raise HTTPException(404, "Unknown document.")
-    if doc.status == "scanning":
+    if doc.status in ("ocr_processing", "scanning", "masking"):
         return doc.public()
+    doc.log("reprocess_started", previous_status=doc.status)
     _kickoff_scan(doc)
     return doc.public()
 
@@ -192,10 +193,15 @@ def _mask_in_background(doc: Document) -> None:
                            on_step=_publisher(doc))
         doc.entities = result["entities"]
         doc.masked_markdown = result["masked"]
+        doc.verification = result["verification"]
+        for step in result["trace"]:
+            _publisher(doc)(step)
         doc.status = "done"
         doc.log("privacy_mask", engine=result.get("engine", "deterministic"),
                 entities=len(doc.entities),
                 removed=sum(1 for e in doc.entities if e.action == "MASK"),
+                unchanged=len(doc.verification),
+                risky_unchanged=sum(1 for item in doc.verification if item["risky"]),
                 status="done")
     except Exception as exc:  # noqa: BLE001 — expose a safe status, not a stuck job
         doc.status = "error"
@@ -397,13 +403,31 @@ class NerTagRequest(BaseModel):
 
 @app.get("/api/ner-tags")
 def list_ner_tags() -> dict[str, Any]:
-    return {"tags": list(privacy.CUSTOM_TYPES.values())}
+    return {"tags": privacy.list_types()}
 
 
 @app.post("/api/ner-tags")
-def create_ner_tag(request: NerTagRequest) -> dict[str, str]:
+def create_ner_tag(request: NerTagRequest) -> dict[str, Any]:
     try:
         return privacy.add_custom_type(request.name, request.description, request.status)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.put("/api/ner-tags/{name}")
+def update_ner_tag(name: str, request: NerTagRequest) -> dict[str, Any]:
+    if request.name.strip().upper() != name.strip().upper():
+        raise HTTPException(400, "A tag cannot be renamed while editing.")
+    try:
+        return privacy.update_type(name, request.description, request.status)
+    except ValueError as exc:
+        raise HTTPException(404 if "Unknown" in str(exc) else 400, str(exc)) from exc
+
+
+@app.post("/api/ner-tags/{name}/reset")
+def reset_ner_tag(name: str) -> dict[str, Any]:
+    try:
+        return privacy.reset_builtin_type(name)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 

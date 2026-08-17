@@ -25,7 +25,7 @@ const LIGHT = {
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
 
-const STAGES = ["Detect", "Classify", "Pseudonymize"];
+const STAGES = ["Detect", "Classify", "Pseudonymize", "Verify"];
 const PROVIDERS = [
   { id: "ollama", label: "Local — Ollama", defaultModel: "gemma4:12b", needsKey: false },
   { id: "openai", label: "ChatGPT — OpenAI", defaultModel: "gpt-4o-mini", needsKey: true },
@@ -52,14 +52,20 @@ const KO = {
   "Business teams already lean on generative AI to summarize contracts, review terms, and draft emails — but those documents carry personal data, company names, account numbers, contract values, and confidential clauses that shouldn't leave the building. This agent converts any document to Markdown, detects that sensitive information automatically, masks it with consistent and realistic placeholders before anything is sent to an external model, restores the real values locally once a response comes back, and keeps an audit log of exactly what was checked — so teams keep the speed of generative AI without the exposure risk.": "기업 실무팀은 이미 생성형 AI를 활용해 계약서를 요약하고, 조항을 검토하며, 이메일 초안을 작성하고 있습니다. 하지만 이러한 문서에는 개인정보, 회사명, 계좌번호, 계약 금액, 외부로 유출되어서는 안 되는 기밀 조항이 포함될 수 있습니다. 이 에이전트는 문서를 Markdown으로 변환하고 민감 정보를 자동으로 탐지한 뒤, 외부 모델로 전송하기 전에 일관되고 현실적인 대체 값으로 가명처리합니다. 모델 응답이 돌아오면 실제 값을 로컬에서 복원하고, 어떤 항목을 검사했는지 감사 기록으로 남깁니다. 이를 통해 실무팀은 정보 노출 위험을 줄이면서 생성형 AI의 속도와 편의성을 활용할 수 있습니다.",
   "ARCHITECTURE": "아키텍처",
   "Local Gemma detects context. Deterministic Python validates and protects.": "로컬 Gemma가 문맥을 탐지하고, 결정론적 Python이 검증하고 보호합니다.",
+  "Local Gemma detects context. Deterministic Python validates, masks, and verifies.": "로컬 Gemma가 문맥을 탐지하고, 결정론적 Python이 검증, 마스킹, 사후 확인을 수행합니다.",
   "Everything inside the dashed boundary runs on this machine. Only masked Markdown ever leaves it.": "점선 경계 안의 모든 작업은 이 기기에서 실행되며, 마스킹된 Markdown만 외부로 전송됩니다.",
+  "Everything inside the dashed boundary runs on this machine. Verification reports unchanged originals before the masked Markdown can be used for Chat.": "점선 경계 안의 모든 작업은 이 기기에서 실행됩니다. 검증 단계는 마스킹된 Markdown을 채팅에 사용하기 전에 변경되지 않은 원본 값을 알려줍니다.",
   "0 · INGESTION — convert.py · any file → Markdown": "0 · 문서 입력 — convert.py · 모든 파일 → Markdown",
   "OCR server (fast, separate process)": "OCR 서버(빠른 별도 프로세스)",
   "PaddleOCR PP-StructureV3 (in-process)": "PaddleOCR PP-StructureV3(프로세스 내부)",
   "pypdf text layer": "pypdf 텍스트 레이어",
   "passthrough / markdownify": "직접 변환 / markdownify",
   "LOCAL BOUNDARY — CrewAI + Gemma detect · privacy.py validates and masks": "로컬 경계 — CrewAI + Gemma 탐지 · privacy.py 검증 및 마스킹",
+  "LOCAL BOUNDARY — CrewAI + Gemma detect · privacy.py validates, masks, and verifies": "로컬 경계 — CrewAI + Gemma 탐지 · privacy.py 검증, 마스킹 및 사후 확인",
   "CREWAI SEQUENTIAL CHAIN — local Ollama only": "CREWAI 순차 체인 — 로컬 Ollama 전용",
+  "THREE LOCAL AGENTS + DETERMINISTIC VERIFIER": "3개의 로컬 에이전트 + 결정론적 검증기",
+  "Post-Mask Verification Checker": "마스킹 후 검증기",
+  "The first three stages detect, decide, and replace. The fourth stage is deterministic Python: it reports intentional KEEP values and risky unchanged replacements, but never blocks completion.": "처음 세 단계는 탐지, 처리 결정, 치환을 수행합니다. 네 번째 단계는 결정론적 Python으로 동작하며, 의도적으로 유지된 값과 위험하게 변경되지 않은 값을 알리지만 완료를 차단하지 않습니다.",
   "Sensitive Information Detector": "민감 정보 탐지기",
   "Risk Assessment & Decision Engine": "위험 평가 및 처리 결정 엔진",
   "Pseudonymization Engine": "가명처리 엔진",
@@ -86,6 +92,7 @@ const KO = {
   "local Ollama only (CREW_MODEL, default gemma4:12b)": "로컬 Ollama 전용(CREW_MODEL, 기본값 gemma4:12b)",
   "security layer": "보안 계층",
   "hybrid: local Gemma detection + deterministic validation and masking": "하이브리드: 로컬 Gemma 탐지 + 결정론적 검증 및 마스킹",
+  "hybrid: local Gemma detection + deterministic validation, masking, and verification": "하이브리드: 로컬 Gemma 탐지 + 결정론적 검증, 마스킹 및 사후 확인",
   "retrieval": "검색 방식",
   "none. whole masked document in the prompt — no RAG, no embeddings": "없음. 마스킹된 전체 문서를 프롬프트에 포함 — RAG 및 임베딩 미사용",
   "history": "대화 기록",
@@ -109,12 +116,24 @@ const KO = {
   "DOCUMENT": "문서", "STATUS": "상태", "FINDINGS": "탐지 결과", "ACTIONS": "작업",
   "No documents yet — upload a file or add a sample above.": "문서가 없습니다. 파일을 업로드하거나 샘플을 추가하세요.",
   "OCR processing…": "OCR 처리 중…", "detecting…": "탐지 중…", "masking…": "마스킹 중…", "Done": "완료",
+  "Verify": "검증", "POST-MASK VERIFICATION — non-blocking": "마스킹 후 검증 — 차단하지 않음",
+  "checks which detected originals remain": "탐지된 원본 값이 남아 있는지 확인",
+  "KEEP values become reminders": "유지 값은 알림으로 표시",
+  "failed replacements become risk warnings": "실패한 치환은 위험 경고로 표시",
+  "processing always continues to Done": "처리는 항상 완료 상태로 계속 진행",
+  "Reminder:": "알림:", "still contain original values.": "태그에 원본 값이 남아 있습니다.",
+  "unchanged": "미변경", "RISKY": "위험", "KEPT": "유지",
   "chain failed": "처리 실패", "Retry": "다시 시도", "Retrying…": "다시 시도 중…",
+  "Redo": "다시 처리", "Redoing…": "다시 처리 중…", "Redo four-stage review": "4단계 검토 다시 실행",
   "Gemma is detecting…": "Gemma가 탐지 중입니다…", "working…": "처리 중…",
   "VALIDATED MODEL OUTPUT": "검증된 모델 출력", "MAPPING STORE — ephemeral, session-scoped, never written to disk": "매핑 저장소 — 세션 내 임시 저장, 디스크에 기록되지 않음",
   "Customize sensitive-information tags.": "민감 정보 태그를 사용자 정의하세요.",
   "Add security or privacy categories that are not covered by the default NER list. Each tag and its detection guidance is added to the local detector prompt for future scans.": "기본 NER 목록에 없는 보안 또는 개인정보 범주를 추가하세요. 각 태그와 탐지 가이드는 이후 스캔의 로컬 탐지 프롬프트에 추가됩니다.",
   "CUSTOM NER TAGS": "사용자 정의 NER 태그", "ROOT TAG": "루트 태그", "WHAT BELONGS IN THIS TAG?": "이 태그에 포함되는 정보", "HANDLING": "처리 방식",
+  "NER TAG POLICY": "NER 태그 정책",
+  "Review every default and custom category. Select a row to edit its guidance or handling; select it again to cancel. Changes apply to future scans.": "기본 및 사용자 정의 카테고리를 모두 확인하세요. 행을 선택하면 탐지 지침이나 처리 방식을 수정할 수 있고, 다시 선택하면 편집이 취소됩니다. 변경 사항은 이후 스캔부터 적용됩니다.",
+  "SOURCE": "출처", "DEFAULT": "기본", "CUSTOM": "사용자 정의", "DEFAULT · EDITED": "기본 · 수정됨", "CUSTOM · EDITED": "사용자 정의 · 수정됨",
+  "Update": "업데이트", "Reset default": "기본값 복원",
   "Add": "추가", "TAG": "태그", "MODEL GUIDANCE": "모델 가이드", "ACTION": "작업", "No custom tags yet.": "사용자 정의 태그가 없습니다.",
   "Teach Gemma project-specific secrets.": "프로젝트별 민감 정보 태그를 설정하세요.",
   "Got a report back? Remap it to its real values.": "보고서를 받았나요? 실제 값으로 복원하세요.",
@@ -321,6 +340,17 @@ function ReasoningBox({ doc }) {
                 ))}
               </div>
             )}
+            {step.stage === "verify" && step.detail?.length > 0 && (
+              <div className="flex flex-col gap-1 mt-0.5">
+                {step.detail.map((item, j) => (
+                  <div key={j} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2"
+                    style={{ background: item.risky ? `${T.danger}12` : `${T.accent2}12`, color: item.risky ? T.danger : T.accent2 }}>
+                    <AlertTriangle size={11} className="shrink-0" />
+                    <span>{item.type} · {item.value} · {item.risky ? "RISKY" : "KEPT"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {!done && <div style={{ color: T.muted }}><Loader2 size={12} className="inline animate-spin mr-1.5" />working…</div>}
@@ -366,7 +396,7 @@ function UploadTab({ docs, refresh, notify }) {
 
   // Upload auto-starts Detect -> Classify server-side (see main.py's
   // _kickoff_scan). This polls that through to "scanned", then triggers
-  // Pseudonymize itself — so the whole three-stage chain runs
+  // Pseudonymize + Verify itself — so the whole four-stage chain runs
   // end-to-end from a single upload, no extra click needed.
   const pollUntil = async (uid, doneStatuses) => {
     for (;;) {
@@ -507,7 +537,18 @@ function UploadTab({ docs, refresh, notify }) {
                     </span>
                   </div>
                 )}
-                {!inProgress && ["done", "complete"].includes(doc.status) && <Badge tone="accent" icon={CheckCircle2}>Done</Badge>}
+                {!inProgress && ["done", "complete"].includes(doc.status) && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge tone="accent" icon={CheckCircle2}>Done</Badge>
+                    {doc.verification?.length > 0 && (
+                      <span title={doc.verification.map((item) => `${item.type}: ${item.value}`).join("\n")}>
+                        <Badge tone={doc.verification.some((item) => item.risky) ? "danger" : "accent2"} icon={AlertTriangle}>
+                          {doc.verification.length} <span>unchanged</span>
+                        </Badge>
+                      </span>
+                    )}
+                  </div>
+                )}
                 {!inProgress && doc.status === "error" && <Badge tone="danger" icon={AlertTriangle}>chain failed</Badge>}
               </div>
               <div className="flex flex-wrap gap-1">
@@ -538,6 +579,12 @@ function UploadTab({ docs, refresh, notify }) {
                     </button>
                     {["done", "complete"].includes(doc.status) && (
                       <>
+                        <button onClick={() => retry(doc.uid)} disabled={running} title="Redo four-stage review"
+                          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs"
+                          style={{ background: T.panel2, color: T.accent2, border: `1px solid ${T.accent2}40`, fontFamily: T.sans, opacity: running ? .6 : 1 }}>
+                          {running ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                          {running ? "Redoing…" : "Redo"}
+                        </button>
                         <a href={`/api/documents/${doc.uid}/download?variant=masked`} download title="Masked Markdown"
                           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs"
                           style={{ background: T.panel2, color: T.text, border: `1px solid ${T.border}`, fontFamily: T.sans }}>
@@ -662,6 +709,8 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
   const session = sessions.find((s) => s.id === activeId) || sessions[0];
   const selected = ready.filter((d) => session.docUids.includes(d.uid));
   const entities = selected.flatMap((d) => d.entities || []);
+  const unchanged = selected.flatMap((d) => d.verification || []);
+  const unchangedTags = [...new Set(unchanged.map((item) => item.type))];
   const providerInfo = PROVIDERS.find((p) => p.id === provider);
 
   useEffect(() => {
@@ -811,6 +860,16 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
                 {d.name} <X size={11} />
               </button>
             ))}
+          </div>
+        )}
+
+        {unchangedTags.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2"
+            style={{ background: `${unchanged.some((item) => item.risky) ? T.danger : T.accent2}10`, border: `1px solid ${unchanged.some((item) => item.risky) ? T.danger : T.accent2}35` }}>
+            <AlertTriangle size={13} color={unchanged.some((item) => item.risky) ? T.danger : T.accent2} className="shrink-0" />
+            <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted }}>
+              <span>Reminder:</span> {unchangedTags.join(", ")} <span>still contain original values.</span>
+            </span>
           </div>
         )}
 
@@ -966,14 +1025,30 @@ function ReconstructTab({ docs, notify }) {
 function NerTagsTab({ notify }) {
   const T = useT();
   const [tags, setTags] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ name: "", description: "", status: "PSEUDONYMIZED" });
   const load = () => api("/ner-tags").then((data) => setTags(data.tags)).catch((err) => notify(err.message));
   useEffect(() => { load(); }, []);
 
-  const create = async () => {
+  const cancel = () => {
+    setSelected(null);
+    setForm({ name: "", description: "", status: "PSEUDONYMIZED" });
+  };
+  const select = (tag) => {
+    if (selected === tag.name) { cancel(); return; }
+    setSelected(tag.name);
+    setForm({ name: tag.name, description: tag.description, status: tag.status });
+  };
+
+  const save = async () => {
+    const tag = tags.find((item) => item.name === selected);
+    const strength = { KEEP: 0, PSEUDONYMIZED: 1, REMOVED: 2 };
+    if (tag?.source === "DEFAULT" && strength[form.status] < strength[tag.status]
+      && !window.confirm(`Change ${tag.name} from ${tag.status} to ${form.status}? This weakens its default protection.`)) return;
     try {
-      await api("/ner-tags", { method: "POST", body: JSON.stringify(form) });
-      setForm({ name: "", description: "", status: "PSEUDONYMIZED" });
+      await api(selected ? `/ner-tags/${encodeURIComponent(selected)}` : "/ner-tags",
+        { method: selected ? "PUT" : "POST", body: JSON.stringify(form) });
+      cancel();
       load();
     } catch (err) { notify(err.message); }
   };
@@ -981,6 +1056,14 @@ function NerTagsTab({ notify }) {
   const remove = async (name) => {
     try {
       await api(`/ner-tags/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (selected === name) cancel();
+      load();
+    } catch (err) { notify(err.message); }
+  };
+  const reset = async (name) => {
+    try {
+      await api(`/ner-tags/${encodeURIComponent(name)}/reset`, { method: "POST" });
+      if (selected === name) cancel();
       load();
     } catch (err) { notify(err.message); }
   };
@@ -990,18 +1073,19 @@ function NerTagsTab({ notify }) {
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-2 mb-1.5"><KeyRound size={16} color={T.accent} />
-          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent }}>CUSTOM NER TAGS</span>
+          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent }}>NER TAG POLICY</span>
         </div>
         <h2 style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 22 }}>Customize sensitive-information tags.</h2>
         <p style={{ fontFamily: T.sans, fontSize: 13.5, color: T.muted, marginTop: 4 }}>
-          Add security or privacy categories that are not covered by the default NER list. Each tag and its detection guidance is added to the local detector prompt for future scans.
+          Review every default and custom category. Select a row to edit its guidance or handling; select it again to cancel. Changes apply to future scans.
         </p>
       </div>
 
       <div className="ner-form grid gap-2">
         <label className="flex flex-col gap-1"><span style={{ color: T.muted, fontFamily: T.mono, fontSize: 10 }}>ROOT TAG</span>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value.toUpperCase() })}
-            placeholder="NER_TAG" className="rounded-xl px-3 py-2.5 text-sm outline-none" style={field} />
+            disabled={Boolean(selected)} placeholder="NER_TAG" className="rounded-xl px-3 py-2.5 text-sm outline-none"
+            style={{ ...field, opacity: selected ? .65 : 1 }} />
         </label>
         <label className="flex flex-col gap-1"><span style={{ color: T.muted, fontFamily: T.mono, fontSize: 10 }}>WHAT BELONGS IN THIS TAG?</span>
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -1013,22 +1097,30 @@ function NerTagsTab({ notify }) {
             <option>PSEUDONYMIZED</option><option>KEEP</option><option>REMOVED</option>
           </select>
         </label>
-        <button onClick={create} disabled={!form.name.trim()} className="mobile-full rounded-xl px-4 py-2.5 text-sm font-semibold"
+        <button onClick={save} disabled={!form.name.trim()} className="mobile-full rounded-xl px-4 py-2.5 text-sm font-semibold"
           style={{ background: T.accent, color: T.bg, opacity: form.name.trim() ? 1 : .5, alignSelf: "end" }}>
-          <Plus size={15} className="inline mr-1" /> Add
+          {selected ? <Check size={15} className="inline mr-1" /> : <Plus size={15} className="inline mr-1" />}
+          {selected ? "Update" : "Add"}
         </button>
       </div>
 
       <div className="mobile-scroll rounded-2xl" style={{ border: `1px solid ${T.border}` }}>
         <div className="ner-grid grid px-4 py-2.5 text-xs" style={{ background: T.panel2, color: T.muted, fontFamily: T.mono }}>
-          <div>TAG</div><div>MODEL GUIDANCE</div><div>STATUS</div><div>ACTION</div>
+          <div>TAG</div><div>SOURCE</div><div>MODEL GUIDANCE</div><div>STATUS</div><div>ACTION</div>
         </div>
-        {!tags.length && <div className="px-4 py-8 text-center" style={{ background: T.panel, color: T.muted, fontFamily: T.mono, fontSize: 12 }}>No custom tags yet.</div>}
         {tags.map((tag) => (
-          <div key={tag.name} className="ner-grid grid items-center px-4 py-3" style={{ background: T.panel, borderTop: `1px solid ${T.border}`, fontFamily: T.mono, fontSize: 12 }}>
-            <span style={{ color: T.accent }}>{tag.name}</span><span style={{ color: T.text }}>{tag.description}</span>
+          <div key={tag.name} onClick={() => select(tag)} className="ner-grid grid items-center px-4 py-3 cursor-pointer"
+            style={{ background: selected === tag.name ? T.panel2 : T.panel, borderTop: `1px solid ${T.border}`, fontFamily: T.mono, fontSize: 12 }}>
+            <span style={{ color: T.accent }}>{tag.name}</span>
+            <span style={{ color: tag.source === "DEFAULT" ? T.muted : T.accent2, fontSize: 10 }}>{tag.source}{tag.modified ? " · EDITED" : ""}</span>
+            <span style={{ color: T.text }}>{tag.description}</span>
             <Badge tone={statusTone(tag.status)}>{tag.status}</Badge>
-            <button onClick={() => remove(tag.name)} className="rounded-lg p-2" title="Delete tag" style={{ background: T.panel2 }}><Trash2 size={13} color={T.danger} /></button>
+            {tag.source === "CUSTOM" ? (
+              <button onClick={(e) => { e.stopPropagation(); remove(tag.name); }} className="rounded-lg p-2" title="Delete tag" style={{ background: T.panel2 }}><Trash2 size={13} color={T.danger} /></button>
+            ) : (
+              <button onClick={(e) => { e.stopPropagation(); reset(tag.name); }} disabled={!tag.modified}
+                className="rounded-lg p-2" title="Reset default" style={{ background: T.panel2, opacity: tag.modified ? 1 : .35 }}><RotateCcw size={13} color={T.muted} /></button>
+            )}
           </div>
         ))}
       </div>
@@ -1038,8 +1130,8 @@ function NerTagsTab({ notify }) {
 
 /* ------------------------------------------------------ home / team / arch --- */
 const PROJECT = {
-  titleKo: "프라이버시 보호형 계약 검토 AI 에이전트",
-  titleEn: "Privacy-Aware Contract Review Agent",
+  subtitle: "Privacy-Aware Contract Review Agent",
+  titleEn: "MuffinGuard",
   summary: "Business teams already lean on generative AI to summarize contracts, review terms, and draft emails — but those documents carry personal data, company names, account numbers, contract values, and confidential clauses that shouldn't leave the building. This agent converts any document to Markdown, detects that sensitive information automatically, masks it with consistent and realistic placeholders before anything is sent to an external model, restores the real values locally once a response comes back, and keeps an audit log of exactly what was checked — so teams keep the speed of generative AI without the exposure risk.",
   keywords: ["AI Agent", "Privacy Protection", "Document Security", "Contract Review", "Sensitive Information Detection", "Pseudonymization", "Local LLM", "Audit Logging", "Enterprise AI"],
 };
@@ -1056,7 +1148,7 @@ function HomeTab({ onTryDemo, health }) {
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Shield size={16} color={T.accent} />
-          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, letterSpacing: .5 }}>{PROJECT.titleKo}</span>
+          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, letterSpacing: .5 }}>{PROJECT.subtitle}</span>
         </div>
         <h1 style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 28, lineHeight: 1.25 }}>{PROJECT.titleEn}</h1>
         <p style={{ fontFamily: T.sans, fontSize: 14, color: T.muted, marginTop: 14, lineHeight: 1.75 }}>{PROJECT.summary}</p>
@@ -1171,10 +1263,10 @@ function ArchitectureTab() {
           <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, letterSpacing: .5 }}>ARCHITECTURE</span>
         </div>
         <h2 style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 22 }}>
-          Local Gemma detects context. Deterministic Python validates and protects.
+          Local Gemma detects context. Deterministic Python validates, masks, and verifies.
         </h2>
         <p style={{ fontFamily: T.sans, fontSize: 13.5, color: T.muted, marginTop: 4, maxWidth: 660 }}>
-          Everything inside the dashed boundary runs on this machine. Only masked Markdown ever leaves it.
+          Everything inside the dashed boundary runs on this machine. Verification reports unchanged originals before the masked Markdown can be used for Chat.
         </p>
       </div>
 
@@ -1211,18 +1303,19 @@ function ArchitectureTab() {
         <div className="flex items-center gap-2 flex-wrap">
           <Lock size={14} color={T.accent} />
           <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, fontWeight: 700, letterSpacing: .5 }}>
-            LOCAL BOUNDARY — CrewAI + Gemma detect · privacy.py validates and masks
+            LOCAL BOUNDARY — CrewAI + Gemma detect · privacy.py validates, masks, and verifies
           </span>
         </div>
 
         <div className="rounded-2xl p-4 flex flex-col gap-2" style={card}>
           <div style={{ fontFamily: T.mono, fontSize: 11, color: T.accent, letterSpacing: .5, marginBottom: 2 }}>
-            CREWAI SEQUENTIAL CHAIN — local Ollama only
+            THREE LOCAL AGENTS + DETERMINISTIC VERIFIER
           </div>
           {[
             ["1", "Sensitive Information Detector", "detect_sensitive_values", Search],
             ["2", "Risk Assessment & Decision Engine", "assess_risk", Activity],
             ["3", "Pseudonymization Engine", "pseudonymize_document", Repeat],
+            ["4", "Post-Mask Verification Checker", "mask_pipeline", Shield],
           ].map(([n, role, toolName, Icon]) => (
             <div key={n} className="flex items-center gap-2.5 rounded-xl px-3 py-2 flex-wrap" style={{ background: T.panel2 }}>
               <span className="rounded-full flex items-center justify-center shrink-0"
@@ -1235,9 +1328,8 @@ function ArchitectureTab() {
             </div>
           ))}
           <p style={{ fontFamily: T.sans, fontSize: 11.5, color: T.muted, marginTop: 2, lineHeight: 1.6 }}>
-            Gemma proposes contextual entities that fixed patterns may miss. Python accepts only exact
-            substrings with approved entity types, merges them with deterministic findings, and performs
-            every replacement and completion result.
+            The first three stages detect, decide, and replace. The fourth stage is deterministic Python:
+            it reports intentional KEEP values and risky unchanged replacements, but never blocks completion.
           </p>
         </div>
 
@@ -1264,6 +1356,15 @@ function ArchitectureTab() {
           <Row label="REMOVED values" value="replaced with [REDACTED-TYPE] and never restored" />
           <Row label="mapping store" value="in-process memory · never written to disk" tone={T.accent} />
         </div>
+
+        <FlowArrow />
+
+        <ArchStage number="4" title="POST-MASK VERIFICATION — non-blocking" items={[
+          { icon: Search, label: "checks which detected originals remain" },
+          { icon: AlertTriangle, label: "KEEP values become reminders" },
+          { icon: Shield, label: "failed replacements become risk warnings" },
+          { icon: CheckCircle2, label: "processing always continues to Done" },
+        ]} />
       </div>
 
       <FlowArrow />
@@ -1278,7 +1379,7 @@ function ArchitectureTab() {
         </div>
         <Row label="chat model" value="OpenAI · Mistral · Ollama — your choice, key stays in the tab" />
         <Row label="agent model" value="local Ollama only (CREW_MODEL, default gemma4:12b)" />
-        <Row label="security layer" value="hybrid: local Gemma detection + deterministic validation and masking" tone={T.accent} />
+        <Row label="security layer" value="hybrid: local Gemma detection + deterministic validation, masking, and verification" tone={T.accent} />
         <Row label="retrieval" value="none. whole masked document in the prompt — no RAG, no embeddings" />
         <Row label="history" value="replayed as MASKED answers, never the remapped ones" tone={T.accent} />
       </div>
@@ -1393,7 +1494,7 @@ function App() {
                 <Shield size={18} color={T.accent} />
               </div>
               <div className="text-left">
-                <div style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 15 }}>Privacy Agent</div>
+                <div style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 15 }}>MuffinGuard</div>
                 <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.muted }}>local-first · pseudonymized</div>
               </div>
             </button>
