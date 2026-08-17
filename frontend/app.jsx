@@ -12,13 +12,13 @@ import {
 /* ---------------------------------------------------------------- theme --- */
 const DARK = {
   bg: "#0A0D10", panel: "#12171C", panel2: "#171D24", border: "#232B33",
-  text: "#E7EDF2", muted: "#8592A0", accent: "#34D5C4", accent2: "#E8A33D",
+  text: "#E7EDF2", muted: "#8592A0", accent: "#DF7B34", accent2: "#E8A33D", onAccent: "#231207",
   danger: "#FF5D6C", mono: "'IBM Plex Mono', ui-monospace, monospace",
   sans: "'Manrope', ui-sans-serif, system-ui",
 };
 const LIGHT = {
-  bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#EEF0F3", border: "#DEE2E7",
-  text: "#14181D", muted: "#5B6470", accent: "#0E9C8C", accent2: "#B96E11",
+  bg: "#FCF1E5", panel: "#FFFFFF", panel2: "#F7E5D3", border: "#E8D4BF",
+  text: "#14181D", muted: "#5B6470", accent: "#DF7B34", accent2: "#B96E11", onAccent: "#231207",
   danger: "#D3374A", mono: "'IBM Plex Mono', ui-monospace, monospace",
   sans: "'Manrope', ui-sans-serif, system-ui",
 };
@@ -485,7 +485,7 @@ function UploadTab({ docs, refresh, notify }) {
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => fileRef.current?.click()} disabled={busy === "upload"}
           className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
-          style={{ background: T.accent, color: T.bg, fontFamily: T.sans, opacity: busy === "upload" ? .6 : 1 }}>
+          style={{ background: T.accent, color: T.onAccent, fontFamily: T.sans, opacity: busy === "upload" ? .6 : 1 }}>
           {busy === "upload" ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
           {busy === "upload" ? "Converting…" : "Upload document"}
         </button>
@@ -568,7 +568,7 @@ function UploadTab({ docs, refresh, notify }) {
                 {doc.status === "error" ? (
                   <button onClick={() => retry(doc.uid)} disabled={running}
                     className="rounded-lg px-3 py-1.5 text-xs font-medium"
-                    style={{ background: T.accent, color: T.bg, fontFamily: T.sans, opacity: running ? .6 : 1 }}>
+                    style={{ background: T.accent, color: T.onAccent, fontFamily: T.sans, opacity: running ? .6 : 1 }}>
                     {running ? "Retrying…" : "Retry"}
                   </button>
                 ) : (
@@ -797,7 +797,7 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
     <div className="chat-grid grid gap-5">
       <div className="flex flex-col gap-2">
         <button onClick={newChat} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
-          style={{ background: T.accent, color: T.bg, fontFamily: T.sans }}>
+          style={{ background: T.accent, color: T.onAccent, fontFamily: T.sans }}>
           <Plus size={15} /> New chat
         </button>
         <div className="flex flex-col gap-1 mt-1">
@@ -891,7 +891,7 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
           ) : null}
           {session.messages.map((m, i) => m.role === "user" ? (
             <div key={i} className="self-end rounded-2xl px-4 py-2 max-w-[70%]"
-              style={{ background: T.accent, color: T.bg, fontFamily: T.sans, fontSize: 13 }}>{m.text}</div>
+              style={{ background: T.accent, color: T.onAccent, fontFamily: T.sans, fontSize: 13 }}>{m.text}</div>
           ) : (
             <ChatMessage key={i} message={m} entities={entities} />
           ))}
@@ -909,7 +909,7 @@ function ChatTab({ docs, notify, ollamaModels, chat, setChat }) {
             style={{ background: T.panel, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.sans, opacity: selected.length ? 1 : .6 }} />
           <button onClick={() => send()} disabled={!selected.length || sending}
             className="rounded-xl px-4 flex items-center justify-center"
-            style={{ background: T.accent, color: T.bg, opacity: selected.length && !sending ? 1 : .6 }}>
+            style={{ background: T.accent, color: T.onAccent, opacity: selected.length && !sending ? 1 : .6 }}>
             {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
@@ -1099,7 +1099,7 @@ function NerTagsTab({ notify }) {
           </select>
         </label>
         <button onClick={save} disabled={!form.name.trim()} className="mobile-full rounded-xl px-4 py-2.5 text-sm font-semibold"
-          style={{ background: T.accent, color: T.bg, opacity: form.name.trim() ? 1 : .5, alignSelf: "end" }}>
+          style={{ background: T.accent, color: T.onAccent, opacity: form.name.trim() ? 1 : .5, alignSelf: "end" }}>
           {selected ? <Check size={15} className="inline mr-1" /> : <Plus size={15} className="inline mr-1" />}
           {selected ? "Update" : "Add"}
         </button>
@@ -1145,14 +1145,19 @@ const TEAM = {
 function HomeTab({ onTryDemo, health }) {
   const T = useT();
   return (
-    <div className="flex flex-col gap-8 max-w-2xl">
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <Shield size={16} color={T.accent} />
-          <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, letterSpacing: .5 }}>{PROJECT.subtitle}</span>
+    <div className="flex flex-col gap-8 max-w-5xl">
+      <div className="grid gap-6 items-center md:grid-cols-2">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Shield size={16} color={T.accent} />
+            <span style={{ fontFamily: T.mono, fontSize: 11.5, color: T.accent, letterSpacing: .5 }}>{PROJECT.subtitle}</span>
+          </div>
+          <h1 style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 28, lineHeight: 1.25 }}>{PROJECT.titleEn}</h1>
+          <p style={{ fontFamily: T.sans, fontSize: 14, color: T.muted, marginTop: 14, lineHeight: 1.75 }}>{PROJECT.summary}</p>
         </div>
-        <h1 style={{ fontFamily: T.sans, fontWeight: 800, fontSize: 28, lineHeight: 1.25 }}>{PROJECT.titleEn}</h1>
-        <p style={{ fontFamily: T.sans, fontSize: 14, color: T.muted, marginTop: 14, lineHeight: 1.75 }}>{PROJECT.summary}</p>
+        <img src="/image/Team.png" alt="Muffin team illustration"
+          className="w-full rounded-2xl object-cover"
+          style={{ aspectRatio: "4 / 3", border: `1px solid ${T.border}`, background: T.panel }} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -1176,7 +1181,7 @@ function HomeTab({ onTryDemo, health }) {
       )}
 
       <button onClick={onTryDemo} className="self-start flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
-        style={{ background: T.accent, color: T.bg, fontFamily: T.sans }}>
+        style={{ background: T.accent, color: T.onAccent, fontFamily: T.sans }}>
         Try the demo <ArrowRight size={15} />
       </button>
     </div>

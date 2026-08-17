@@ -51,6 +51,7 @@ from privacy import STORE, Document  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "samples"
 FRONTEND = ROOT / "frontend"
+IMAGE = ROOT / "image"
 
 app = FastAPI(title="Privacy-Aware Contract Review Agent")
 
@@ -465,3 +466,8 @@ def index() -> FileResponse:
 def app_source() -> FileResponse:
     return FileResponse(FRONTEND / "app.jsx", media_type="text/babel",
                         headers={"Cache-Control": "no-store"})
+
+
+@app.get("/image/Team.png")
+def team_image() -> FileResponse:
+    return FileResponse(IMAGE / "Team.png", media_type="image/png")

@@ -10,6 +10,7 @@ RUN python -m pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
 COPY frontend ./frontend
+COPY image ./image
 COPY samples ./samples
 
 FROM base AS app
