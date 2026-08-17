@@ -342,6 +342,12 @@ issue. Use sanitized examples that reproduce the problem.
 Run `docker compose ps` and `docker compose logs model-init ollama`. The first model download can
 take several minutes. Restart the stack through the system startup script after it completes.
 
+**The terminal says `docker` is not recognized or `command not found`**
+
+Run the Docker installer script again. It adds Docker Desktop's standard CLI location to the current
+session; Windows also saves it to the user `PATH`. Then open a new terminal and run the startup
+script.
+
 **Ollama returns `500` and `llama-server process has terminated: signal: killed`**
 
 Docker ran out of memory while loading the model. Start through `scripts/start.ps1` or

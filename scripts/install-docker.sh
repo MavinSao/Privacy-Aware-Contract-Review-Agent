@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for docker_bin in "$HOME/.docker/bin" "/usr/local/bin" "/Applications/Docker.app/Contents/Resources/bin"; do
+  if [[ -x "$docker_bin/docker" ]]; then
+    export PATH="$docker_bin:$PATH"
+    break
+  fi
+done
+
 if command -v docker >/dev/null 2>&1; then
   echo "Docker is already installed."
 elif command -v brew >/dev/null 2>&1; then

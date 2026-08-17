@@ -17,7 +17,7 @@ const DARK = {
   sans: "'Manrope', ui-sans-serif, system-ui",
 };
 const LIGHT = {
-  bg: "#FCF1E5", panel: "#FFFFFF", panel2: "#F7E5D3", border: "#E8D4BF",
+  bg: "#FFFCF8", panel: "#FFFFFF", panel2: "#F7E5D3", border: "#E8D4BF",
   text: "#14181D", muted: "#5B6470", accent: "#DF7B34", accent2: "#B96E11", onAccent: "#231207",
   danger: "#D3374A", mono: "'IBM Plex Mono', ui-monospace, monospace",
   sans: "'Manrope', ui-sans-serif, system-ui",

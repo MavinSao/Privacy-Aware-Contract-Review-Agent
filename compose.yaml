@@ -1,3 +1,5 @@
+name: muffinguard
+
 services:
   ollama:
     image: ollama/ollama:latest

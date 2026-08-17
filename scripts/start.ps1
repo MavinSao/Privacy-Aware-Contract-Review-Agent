@@ -1,5 +1,13 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
+$dockerBin = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin"
+if (-not (Get-Command docker -ErrorAction SilentlyContinue) -and
+    (Test-Path -LiteralPath (Join-Path $dockerBin "docker.exe"))) {
+    $env:Path = "$dockerBin;$env:Path"
+}
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    throw "Docker CLI was not found. Run .\scripts\install-docker.ps1, then open a new terminal."
+}
 
 docker info *> $null
 if ($LASTEXITCODE -ne 0) {

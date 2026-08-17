@@ -1,5 +1,10 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
+$dockerBin = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin"
+if (-not (Get-Command docker -ErrorAction SilentlyContinue) -and
+    (Test-Path -LiteralPath (Join-Path $dockerBin "docker.exe"))) {
+    $env:Path = "$dockerBin;$env:Path"
+}
 
 if (Get-Command docker -ErrorAction SilentlyContinue) {
     Write-Host "Docker is already installed." -ForegroundColor Green
@@ -13,6 +18,14 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Desktop installation failed with exit code $LASTEXITCODE."
     }
+}
+
+if (Test-Path -LiteralPath (Join-Path $dockerBin "docker.exe")) {
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (($userPath -split ";") -notcontains $dockerBin) {
+        [Environment]::SetEnvironmentVariable("Path", "$userPath;$dockerBin".TrimStart(";"), "User")
+    }
+    $env:Path = "$dockerBin;$env:Path"
 }
 
 $dockerDesktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"

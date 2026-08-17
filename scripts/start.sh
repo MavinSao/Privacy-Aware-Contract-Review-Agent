@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for docker_bin in "$HOME/.docker/bin" "/usr/local/bin" "/Applications/Docker.app/Contents/Resources/bin"; do
+  if [[ -x "$docker_bin/docker" ]]; then
+    export PATH="$docker_bin:$PATH"
+    break
+  fi
+done
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker CLI was not found. Run ./scripts/install-docker.sh, then open a new terminal." >&2
+  exit 1
+fi
+
 if ! docker info >/dev/null 2>&1; then
   echo "Docker is not running. Open Docker Desktop and wait for the engine to start." >&2
   exit 1
